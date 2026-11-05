@@ -52,18 +52,15 @@ jobs:
           set -euo pipefail
 
           haxelib setup "$HOME/haxelib"
+
           haxelib install lime --quiet
+          haxelib install hmm --quiet
 
           if [[ -f "hmm.json" ]]; then
-            haxelib install hmm --quiet
-            haxelib run hmm install --quiet
-
-          elif [[ -f "setup/Unix.sh" ]]; then
-            chmod +x setup/Unix.sh
-            bash setup/Unix.sh
-
+            haxelib run hmm install
           else
-            echo "Instalando bibliotecas desde Project.xml sin analizar XML."
+            echo "No se encontró hmm.json."
+            echo "Instalando dependencias publicadas desde Project.xml."
 
             python3 - <<'PY'
           import re
@@ -72,7 +69,16 @@ jobs:
           with open("Project.xml", "r", encoding="utf-8") as file:
               content = file.read()
 
-          libraries = {}
+          content = re.sub(r"<!--.*?-->", "", content, flags=re.S)
+
+          excluded = {
+              "funkin.vis",
+              "hxCodec",
+              "hxdiscord_rpc",
+              "extension-androidtools"
+          }
+
+          installed = set()
 
           for match in re.finditer(r"<haxelib\b([^>]*)/?>", content):
               attributes = match.group(1)
@@ -91,18 +97,26 @@ jobs:
                   continue
 
               name = name_match.group(1)
+
+              if name in excluded or name in installed:
+                  continue
+
               version = version_match.group(1) if version_match else None
 
-              libraries[name] = version
-
-          for name, version in libraries.items():
               command = ["haxelib", "install", name]
 
               if version:
                   command.append(version)
 
-              print("Instalando:", " ".join(command), flush=True)
-              subprocess.run(command, check=True)
+              print("Instalando:", name, flush=True)
+
+              result = subprocess.run(command)
+
+              if result.returncode != 0:
+                  print("Error instalando:", name)
+                  raise SystemExit(result.returncode)
+
+              installed.add(name)
           PY
           fi
 
@@ -122,18 +136,22 @@ jobs:
 
           mkdir -p "$HOME/.gradle"
 
-          printf '%s\n' 'org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8' >> "$HOME/.gradle/gradle.properties"
+          printf '%s\n' \
+            'org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8' \
+            >> "$HOME/.gradle/gradle.properties"
 
       - name: Aplicar archivos, parches y scripts personalizados
         shell: bash
         run: |
           set -euo pipefail
+
           bash custom/apply-customizations.sh
 
       - name: Compilar APK Android
         shell: bash
         run: |
           set -o pipefail
+
           haxelib run lime build android 2>&1 | tee android-build.log
 
       - name: Guardar cambios aplicados en source
