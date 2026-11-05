@@ -64,7 +64,6 @@ jobs:
             bash setup/Mobile.sh
 
           else
-            echo "No se encontró setup/mobile.sh."
             echo "Descargando el instalador oficial de P-Slice."
 
             curl -fL \
@@ -100,14 +99,46 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           bash custom/apply-customizations.sh
+
+      - name: Desactivar Firebase para Android
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import re
+
+          path = "Project.xml"
+
+          with open(path, "r", encoding="utf-8") as f:
+              content = f.read()
+
+          content = re.sub(
+              r'<define\s+name="FIREBASE_CRASH_HANDLER"[^>]*/>',
+              '<!-- Firebase desactivado para esta compilacion -->',
+              content
+          )
+
+          content = re.sub(
+              r'<section\s+if="FIREBASE_CRASH_HANDLER">.*?</section>',
+              '<!-- Integracion Firebase desactivada -->',
+              content,
+              flags=re.S
+          )
+
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(content)
+
+          print("Firebase desactivado correctamente.")
+          PY
+
+          rm -f setup/google-services.json
 
       - name: Compilar APK Android
         shell: bash
         run: |
           set -o pipefail
-
           haxelib run lime build android 2>&1 | tee android-build.log
 
       - name: Guardar cambios en source
