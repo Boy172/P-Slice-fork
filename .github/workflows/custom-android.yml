@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       commit_changes:
-        description: "Guardar los cambios aplicados dentro de source/ en la rama actual"
+        description: "Guardar los cambios aplicados dentro de source/"
         required: true
         type: boolean
         default: false
@@ -46,81 +46,35 @@ jobs:
         with:
           haxe-version: "4.3.6"
 
-      - name: Preparar dependencias del motor
+      - name: Preparar dependencias Android de P-Slice
         shell: bash
         run: |
           set -euo pipefail
 
           haxelib setup "$HOME/haxelib"
 
-          haxelib install lime --quiet
-          haxelib install hmm --quiet
+          if [[ -f "setup/mobile.sh" ]]; then
+            echo "Usando instalador móvil del repositorio."
+            chmod +x setup/mobile.sh
+            bash setup/mobile.sh
 
-          if [[ -f "hmm.json" ]]; then
-            haxelib run hmm install
+          elif [[ -f "setup/Mobile.sh" ]]; then
+            echo "Usando instalador móvil."
+            chmod +x setup/Mobile.sh
+            bash setup/Mobile.sh
+
           else
-            echo "No se encontró hmm.json."
-            echo "Instalando dependencias publicadas desde Project.xml."
+            echo "No se encontró setup/mobile.sh."
+            echo "Descargando el instalador oficial de P-Slice."
 
-            python3 - <<'PY'
-          import re
-          import subprocess
+            curl -fL \
+              "https://raw.githubusercontent.com/Psych-Slice/P-Slice/98e75a5af375b42e5adc5cc9e0b8459fa5f2a413/setup/mobile.sh" \
+              -o /tmp/pslice-mobile.sh
 
-          with open("Project.xml", "r", encoding="utf-8") as file:
-              content = file.read()
-
-          content = re.sub(r"<!--.*?-->", "", content, flags=re.S)
-
-          excluded = {
-              "funkin.vis",
-              "flixel-studio",
-              "hxcpp-debug-server",
-              "hxCodec",
-              "hxdiscord_rpc",
-              "extension-androidtools"
-          }
-
-          installed = set()
-
-          for match in re.finditer(r"<haxelib\b([^>]*)/?>", content):
-              attributes = match.group(1)
-
-              name_match = re.search(
-                  r'\bname\s*=\s*["\']([^"\']+)["\']',
-                  attributes
-              )
-
-              version_match = re.search(
-                  r'\bversion\s*=\s*["\']([^"\']+)["\']',
-                  attributes
-              )
-
-              if not name_match:
-                  continue
-
-              name = name_match.group(1)
-
-              if name in excluded or name in installed:
-                  continue
-
-              version = version_match.group(1) if version_match else None
-
-              command = ["haxelib", "install", name]
-
-              if version:
-                  command.append(version)
-
-              print("Instalando:", name, flush=True)
-
-              result = subprocess.run(command)
-
-              if result.returncode != 0:
-                  print("Error instalando:", name)
-                  raise SystemExit(result.returncode)
-
-              installed.add(name)
-          PY
+            bash /tmp/pslice-mobile.sh
           fi
+
+          echo "Dependencias instaladas."
 
       - name: Configurar Android SDK
         shell: bash
@@ -142,7 +96,7 @@ jobs:
             'org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8' \
             >> "$HOME/.gradle/gradle.properties"
 
-      - name: Aplicar archivos, parches y scripts personalizados
+      - name: Aplicar personalizaciones
         shell: bash
         run: |
           set -euo pipefail
@@ -156,7 +110,7 @@ jobs:
 
           haxelib run lime build android 2>&1 | tee android-build.log
 
-      - name: Guardar cambios aplicados en source
+      - name: Guardar cambios en source
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_changes }}
         shell: bash
         run: |
