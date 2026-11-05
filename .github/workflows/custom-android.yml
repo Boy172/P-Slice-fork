@@ -73,6 +73,8 @@ jobs:
 
           excluded = {
               "funkin.vis",
+              "flixel-studio",
+              "hxcpp-debug-server",
               "hxCodec",
               "hxdiscord_rpc",
               "extension-androidtools"
@@ -172,12 +174,13 @@ jobs:
             git push
           fi
 
-      - name: Publicar APK
+      - name: Publicar APK y registros
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: P-Slice-Android-${{ github.run_number }}
           path: |
             export/**/*.apk
             android-build.log
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
