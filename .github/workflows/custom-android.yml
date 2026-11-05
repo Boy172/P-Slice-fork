@@ -9,6 +9,7 @@ on:
         required: true
         type: boolean
         default: false
+
   push:
     paths:
       - "custom/**"
@@ -62,22 +63,35 @@ jobs:
             bash setup/Unix.sh
 
           else
-            echo "No hay hmm.json ni setup/Unix.sh."
-            echo "Instalando bibliotecas declaradas en Project.xml."
+            echo "Instalando bibliotecas desde Project.xml sin analizar XML."
 
             python3 - <<'PY'
-          import xml.etree.ElementTree as ET
+          import re
           import subprocess
 
-          root = ET.parse("Project.xml").getroot()
+          with open("Project.xml", "r", encoding="utf-8") as file:
+              content = file.read()
+
           libraries = {}
 
-          for node in root.iter("haxelib"):
-              name = node.get("name")
-              version = node.get("version")
+          for match in re.finditer(r"<haxelib\b([^>]*)/?>", content):
+              attributes = match.group(1)
 
-              if not name:
+              name_match = re.search(
+                  r'\bname\s*=\s*["\']([^"\']+)["\']',
+                  attributes
+              )
+
+              version_match = re.search(
+                  r'\bversion\s*=\s*["\']([^"\']+)["\']',
+                  attributes
+              )
+
+              if not name_match:
                   continue
+
+              name = name_match.group(1)
+              version = version_match.group(1) if version_match else None
 
               libraries[name] = version
 
