@@ -1,112 +1,43 @@
-name: P-Slice Custom Android Build
-
-on:
-  workflow_dispatch:
-    inputs:
-      commit_changes:
-        description: "Guardar los cambios aplicados dentro de source/ en la rama actual"
-        required: true
-        type: boolean
-        default: false
-  push:
-    paths:
-      - "custom/**"
-      - ".github/workflows/custom-android.yml"
-      - "Project.xml"
-      - "setup/**"
-
-permissions:
-  contents: write
-
-concurrency:
-  group: pslice-android-${{ github.ref }}
-  cancel-in-progress: false
-
-jobs:
-  build-android:
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-
-    steps:
-      - name: Descargar repositorio
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Configurar Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Configurar Haxe
-        uses: krdlab/setup-haxe@master
-        with:
-          haxe-version: "4.3.6"
 
       - name: Preparar dependencias del motor
         shell: bash
         run: |
           set -euo pipefail
+
+          haxelib setup "$HOME/haxelib"
           haxelib install lime --quiet
-          haxelib install hmm --quiet || true
 
           if [[ -f "hmm.json" ]]; then
+            haxelib install hmm --quiet
             haxelib run hmm install --quiet
           elif [[ -f "setup/Unix.sh" ]]; then
             chmod +x setup/Unix.sh
             bash setup/Unix.sh
           else
-            echo "::error::No se encontró hmm.json ni setup/Unix.sh para instalar las dependencias."
-            exit 1
+            echo "No hay hmm.json ni setup/Unix.sh."
+            echo "Instalando las bibliotecas declaradas en Project.xml."
+
+            python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          import subprocess
+
+          root = ET.parse("Project.xml").getroot()
+          libraries = {}
+
+          for node in root.iter("haxelib"):
+              name = node.get("name")
+              version = node.get("version")
+              if not name:
+                  continue
+              if node.get("if") and any(x in node.get("if").split() for x in ["linux", "desktop", "debug", "PROFILE_BUILD"]):
+                  continue
+              libraries[name] = version
+
+          for name, version in libraries.items():
+              command = ["haxelib", "install", name]
+              if version:
+                  command.append(version)
+              print("Instalando:", " ".join(command), flush=True)
+              subprocess.run(command, check=True)
+          PY
           fi
-
-      - name: Configurar Android SDK
-        shell: bash
-        run: |
-          set -euo pipefail
-          haxelib run lime config ANDROID_SDK "$ANDROID_HOME"
-          if [[ -n "${ANDROID_NDK_LATEST_HOME:-}" ]]; then
-            haxelib run lime config ANDROID_NDK_ROOT "$ANDROID_NDK_LATEST_HOME"
-          fi
-          haxelib run lime config JAVA_HOME "$JAVA_HOME"
-          haxelib run lime config ANDROID_SETUP true
-          mkdir -p "$HOME/.gradle"
-          printf '%s\n' 'org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8' >> "$HOME/.gradle/gradle.properties"
-
-      - name: Aplicar archivos, parches y scripts personalizados
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash custom/apply-customizations.sh
-
-      - name: Compilar APK Android
-        shell: bash
-        run: |
-          set -o pipefail
-          haxelib run lime build android 2>&1 | tee android-build.log
-
-      - name: Guardar cambios aplicados en source
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_changes }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add source/
-          if git diff --cached --quiet; then
-            echo "No hay cambios nuevos que guardar."
-          else
-            git commit -m "Apply custom P-Slice source modifications"
-            git push
-          fi
-
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: P-Slice-Android-${{ github.run_number }}
-          path: |
-            export/**/*.apk
-            android-build.log
-          if-no-files-found: error
-          retention-days: 14
