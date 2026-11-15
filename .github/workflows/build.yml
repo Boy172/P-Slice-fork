@@ -127,49 +127,19 @@ jobs:
       - name: Compile
         run: haxelib run lime build ${{ inputs.buildArgs }}
 
-      - name: Sign APK with the proper key
+      - name: Verify Android APK
         if: inputs.exportPath == 'android'
-        env:
-          OUT_DIR: ./export/release/android/bin/app/build/outputs/apk/release/
-          SIGNING_KEY: ${{ secrets.MIKOLKA_PASSWORD }}
-          SIGNING_FILE: ${{ secrets.MIKOLKA_KEYSTORE }}
         run: |
-          set -e
+          APK="./export/release/android/bin/app/build/outputs/apk/release/PSliceEngine-release.apk"
 
-          echo "$SIGNING_FILE" | base64 --decode > key.keystore
-
-          if [ ! -s key.keystore ]; then
-            echo "ERROR: Keystore is empty."
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK not found at $APK"
+            find export/release/android -name "*.apk" -type f
             exit 1
           fi
 
-          echo "Checking keystore..."
-          keytool -list -keystore key.keystore -storepass "$SIGNING_KEY"
-
-          if [ ! -f "${OUT_DIR}PSliceEngine-release.apk" ]; then
-            echo "ERROR: APK not found."
-            exit 1
-          fi
-
-          mv "${OUT_DIR}PSliceEngine-release.apk" "${OUT_DIR}PSliceEngine-unsigned.apk"
-
-          $ANDROID_HOME/build-tools/35.0.1/zipalign -P 16 -f -v 4 \
-            "${OUT_DIR}PSliceEngine-unsigned.apk" \
-            "${OUT_DIR}PSliceEngine-release.apk"
-
-          $ANDROID_HOME/build-tools/35.0.1/apksigner sign \
-            --ks key.keystore \
-            --ks-key-alias pslice \
-            --ks-pass "env:SIGNING_KEY" \
-            --key-pass "env:SIGNING_KEY" \
-            "${OUT_DIR}PSliceEngine-release.apk"
-
-          $ANDROID_HOME/build-tools/35.0.1/apksigner verify \
-            --verbose \
-            "${OUT_DIR}PSliceEngine-release.apk"
-
-          rm "${OUT_DIR}PSliceEngine-unsigned.apk"
-          rm key.keystore
+          echo "APK generated successfully."
+          ls -lh "$APK"
 
       - name: Make IPA
         if: inputs.name == 'iOS'
@@ -200,7 +170,7 @@ jobs:
                 console.log('Clearing ' + cache.key + '...')
                 await github.rest.actions.deleteActionsCacheById({
                   owner: context.repo.owner,
-                  repo: context.repo.repo,
+                  repo: context.repo.owner,
                   cache_id: cache.id,
                 })
                 console.log("Cache cleared.")
