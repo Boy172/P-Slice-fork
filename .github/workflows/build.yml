@@ -83,17 +83,47 @@ jobs:
           haxelib run lime config JAVA_HOME $JAVA_HOME_17_X64
           haxelib run lime config ANDROID_SETUP true
 
-      - name: Find Firebase Gradle configuration
+      - name: Remove Firebase from Lime Android template
         if: inputs.exportPath == 'android'
         run: |
-          echo "=== Searching Firebase Gradle configuration ==="
-          grep -RIn \
-            --include='*.gradle' \
-            --include='*.gradle.kts' \
-            --include='*.template' \
-            --include='*.xml' \
-            -E 'firebaseCrashlytics|com.google.firebase.crashlytics' \
-            .haxelib source setup export 2>/dev/null || true
+          FILE=".haxelib/lime/git/templates/android/template/app/build.gradle"
+
+          if [ ! -f "$FILE" ]; then
+            echo "ERROR: Lime Android build.gradle template not found"
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          path = Path(".haxelib/lime/git/templates/android/template/app/build.gradle")
+          text = path.read_text()
+
+          text = re.sub(
+              r"(?m)^[ \t]*apply plugin: ['\"]com\.google\.firebase\.crashlytics['\"][ \t]*\n?",
+              "",
+              text
+          )
+
+          text = re.sub(
+              r"(?ms)^[ \t]*firebaseCrashlytics\s*\{.*?^[ \t]*\}[ \t]*\n?",
+              "",
+              text
+          )
+
+          path.write_text(text)
+
+          print("Firebase Crashlytics configuration removed from Lime template.")
+          PY
+
+          echo "=== Checking remaining Firebase references ==="
+          if grep -n -E 'firebaseCrashlytics|com.google.firebase.crashlytics' "$FILE"; then
+            echo "ERROR: Firebase references still exist in the template."
+            exit 1
+          else
+            echo "No Firebase Crashlytics references found."
+          fi
 
       - name: Compile
         run: haxelib run lime build ${{ inputs.buildArgs }}
