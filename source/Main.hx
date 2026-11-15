@@ -43,6 +43,9 @@ class Main extends Sprite
 	};
 
 	public static var debugDisplay:FunkinDebugDisplay;
+	#if TOUCH_CONTROLS_ALLOWED
+	public static var touchIndicator:mobile.objects.TouchIndicator;
+	#end
 	public static final platform:String = #if mobile "Phones" #else "PCs" #end;
 
 	// Game pre-flixel init code
@@ -295,6 +298,12 @@ class Main extends Sprite
 		// Lib.current.stage.window.onResize.add(border.updateGameSize);
 		#end
 		addChild(debugDisplay);
+		#end
+
+		// Ring under every finger / click. Added last so it is drawn above everything else.
+		#if TOUCH_CONTROLS_ALLOWED
+		touchIndicator = new mobile.objects.TouchIndicator();
+		addChild(touchIndicator);
 		#end
 		Lib.current.stage.align = "tl";
 		Lib.current.stage.scaleMode = StageScaleMode.NO_SCALE;
