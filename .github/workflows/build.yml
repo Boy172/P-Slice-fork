@@ -113,13 +113,12 @@ jobs:
           )
 
           path.write_text(text)
-
-          print("Firebase Crashlytics configuration removed from Lime template.")
+          print("Firebase Crashlytics configuration removed.")
           PY
 
-          echo "=== Checking remaining Firebase references ==="
+          echo "=== Checking Firebase references ==="
           if grep -n -E 'firebaseCrashlytics|com.google.firebase.crashlytics' "$FILE"; then
-            echo "ERROR: Firebase references still exist in the template."
+            echo "ERROR: Firebase references still exist."
             exit 1
           else
             echo "No Firebase Crashlytics references found."
@@ -133,27 +132,44 @@ jobs:
         env:
           OUT_DIR: ./export/release/android/bin/app/build/outputs/apk/release/
           SIGNING_KEY: ${{ secrets.MIKOLKA_PASSWORD }}
-          SIGNING_ALIAS: pslice
           SIGNING_FILE: ${{ secrets.MIKOLKA_KEYSTORE }}
         run: |
-          rm -f ./key.keystore
-          echo "$SIGNING_FILE" | base64 -d > ./key.keystore
-          sha256sum ./key.keystore
+          set -e
+
+          echo "$SIGNING_FILE" | base64 --decode > key.keystore
+
+          if [ ! -s key.keystore ]; then
+            echo "ERROR: Keystore is empty."
+            exit 1
+          fi
+
+          echo "Checking keystore..."
+          keytool -list -keystore key.keystore -storepass "$SIGNING_KEY"
+
+          if [ ! -f "${OUT_DIR}PSliceEngine-release.apk" ]; then
+            echo "ERROR: APK not found."
+            exit 1
+          fi
 
           mv "${OUT_DIR}PSliceEngine-release.apk" "${OUT_DIR}PSliceEngine-unsigned.apk"
 
           $ANDROID_HOME/build-tools/35.0.1/zipalign -P 16 -f -v 4 \
             "${OUT_DIR}PSliceEngine-unsigned.apk" \
-            "${OUT_DIR}PSliceEngine-release.apk" > /dev/null
+            "${OUT_DIR}PSliceEngine-release.apk"
 
           $ANDROID_HOME/build-tools/35.0.1/apksigner sign \
             --ks key.keystore \
-            --ks-key-alias "$SIGNING_ALIAS" \
+            --ks-key-alias pslice \
             --ks-pass "env:SIGNING_KEY" \
             --key-pass "env:SIGNING_KEY" \
             "${OUT_DIR}PSliceEngine-release.apk"
 
+          $ANDROID_HOME/build-tools/35.0.1/apksigner verify \
+            --verbose \
+            "${OUT_DIR}PSliceEngine-release.apk"
+
           rm "${OUT_DIR}PSliceEngine-unsigned.apk"
+          rm key.keystore
 
       - name: Make IPA
         if: inputs.name == 'iOS'
