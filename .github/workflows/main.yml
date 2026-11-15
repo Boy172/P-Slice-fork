@@ -1,11 +1,13 @@
+
 name: Build the game
 
 on:
   push:
     branches: [master-dev]
   workflow_dispatch:
+
 jobs:
-  
+
   BuildMobileCache:
     name: Build Caches
     permissions: write-all
@@ -14,6 +16,7 @@ jobs:
       os: macos-15
       CACHE_NAME: P-Slice.1.0.mobile-cache
       setupScript: sh ./setup/mobile.sh
+
   BuildDesktopCache:
     name: Build Caches
     permissions: write-all
@@ -22,6 +25,7 @@ jobs:
       os: ubuntu-24.04
       setupScript: sh ./setup/unix.sh
       CACHE_NAME: P-Slice.1.0.desktop-cache
+
   BuildMacos:
     name: macos
     needs: BuildMobileCache
@@ -33,6 +37,7 @@ jobs:
       cacheLibrariesPath: P-Slice.1.0.mobile-cache
       artifactName: P-Slice.1.0.macos
       artifactPath: export/release/macos/bin/*
+
   BuildDesktop:
     name: Build Desktop
     needs: BuildDesktopCache
@@ -48,6 +53,7 @@ jobs:
             cacheLibrariesPath: P-Slice.1.0.desktop-cache
             cachePath: P-Slice.1.0.build-windows
             artifactPath: export\release\windows\bin\*
+
           - name: Linux
             os: ubuntu-22.04
             buildArgs: "linux -final"
@@ -66,13 +72,14 @@ jobs:
       exportPath: ${{ matrix.exportPath }}
       artifactName: ${{ matrix.artifactName }}
       artifactPath: ${{ matrix.artifactPath }}
-      cachePath: ${{matrix.cachePath}}
+      cachePath: ${{ matrix.cachePath }}
 
   BuildMobile:
     permissions: write-all
     needs: BuildMobileCache
     name: Build mobile
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: Android
@@ -83,6 +90,7 @@ jobs:
             artifactName: P-Slice.1.0.android
             cachePath: P-Slice.1.0.build-android
             artifactPath: "export/release/android/bin/app/build/outputs/apk/release/*.apk"
+
           - name: iOS
             os: macos-15
             buildArgs: "ios -nosign -final"
@@ -91,6 +99,7 @@ jobs:
             artifactName: P-Slice.1.0.ios
             artifactPath: "export/release/ios/build/Release-iphoneos/*.ipa"
             cachePath: P-Slice.1.0.build-ios
+
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
@@ -101,4 +110,4 @@ jobs:
       artifactName: ${{ matrix.artifactName }}
       cacheLibrariesPath: ${{ matrix.cacheLibrariesPath }}
       artifactPath: ${{ matrix.artifactPath }}
-      cachePath: ${{matrix.cachePath}}
+      cachePath: ${{ matrix.cachePath }}
