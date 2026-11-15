@@ -1,4 +1,3 @@
-
 name: Build the game
 
 on:
@@ -43,6 +42,7 @@ jobs:
     needs: BuildDesktopCache
     permissions: write-all
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: Windows
