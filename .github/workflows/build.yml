@@ -57,8 +57,6 @@ jobs:
           enableCrossOsArchive: true
           path: |
             .haxelib/
-          restore-keys: |
-            ${{ inputs.cacheLibrariesPath }}
 
       - name: Restore existing build cache for faster compilation
         id: load-cache
@@ -113,10 +111,12 @@ jobs:
           )
 
           path.write_text(text)
+
           print("Firebase Crashlytics configuration removed.")
           PY
 
           echo "=== Checking Firebase references ==="
+
           if grep -n -E 'firebaseCrashlytics|com.google.firebase.crashlytics' "$FILE"; then
             echo "ERROR: Firebase references still exist."
             exit 1
@@ -133,7 +133,7 @@ jobs:
           APK="./export/release/android/bin/app/build/outputs/apk/release/PSliceEngine-release.apk"
 
           if [ ! -f "$APK" ]; then
-            echo "ERROR: APK not found at $APK"
+            echo "ERROR: APK not found at expected location."
             find export/release/android -name "*.apk" -type f
             exit 1
           fi
@@ -155,34 +155,3 @@ jobs:
           name: ${{ inputs.artifactName }}
           path: ${{ inputs.artifactPath }}
           if-no-files-found: error
-
-      - name: Clearing already existing cache
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const caches = await github.rest.actions.getActionsCacheList({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            })
-
-            for (const cache of caches.data.actions_caches) {
-              if (cache.key == "${{ inputs.cachePath }}") {
-                console.log('Clearing ' + cache.key + '...')
-                await github.rest.actions.deleteActionsCacheById({
-                  owner: context.repo.owner,
-                  repo: context.repo.owner,
-                  cache_id: cache.id,
-                })
-                console.log("Cache cleared.")
-              }
-            }
-
-      - name: Uploading new cache
-        uses: actions/cache@v3
-        with:
-          key: ${{ inputs.cachePath }}
-          path: |
-            export/release/${{ inputs.exportPath }}/haxe/
-            export/release/${{ inputs.exportPath }}/obj/
-          restore-keys: |
-            ${{ inputs.cachePath }}
