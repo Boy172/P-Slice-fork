@@ -2,7 +2,8 @@ package;
 
 import mikolka.vslice.components.crash.CrashServer;
 import mikolka.vslice.components.DebugDisplay.FunkinDebugDisplay;
-import mikolka.funkin.custom.mobile.MobileScaleMode;
+import mikolka.funkin.custom.mobile.FullScreenScaleMode;
+import flixel.FlxG;
 import states.InitState;
 import mikolka.vslice.components.crash.Logger;
 #if HSCRIPT_ALLOWED
@@ -283,6 +284,7 @@ class Main extends Sprite
 		gameObject._customSoundTray = mikolka.vslice.components.FunkinSoundTray;
 
 		addChild(gameObject);
+		FlxG.scaleMode = new FullScreenScaleMode(true);
 
 		trace("Finishing up..");
 		debugDisplay = new FunkinDebugDisplay(10, 10, 0xFFFFFF);
