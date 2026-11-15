@@ -83,6 +83,18 @@ jobs:
           haxelib run lime config JAVA_HOME $JAVA_HOME_17_X64
           haxelib run lime config ANDROID_SETUP true
 
+      - name: Find Firebase Gradle configuration
+        if: inputs.exportPath == 'android'
+        run: |
+          echo "=== Searching Firebase Gradle configuration ==="
+          grep -RIn \
+            --include='*.gradle' \
+            --include='*.gradle.kts' \
+            --include='*.template' \
+            --include='*.xml' \
+            -E 'firebaseCrashlytics|com.google.firebase.crashlytics' \
+            .haxelib source setup export 2>/dev/null || true
+
       - name: Compile
         run: haxelib run lime build ${{ inputs.buildArgs }}
 
