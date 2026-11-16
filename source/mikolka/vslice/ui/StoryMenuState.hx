@@ -1,6 +1,7 @@
 package mikolka.vslice.ui;
 
 import mikolka.funkin.custom.mobile.MobileScaleMode;
+import mikolka.vslice.components.FunkinBackButton;
 import mikolka.compatibility.VsliceOptions;
 import mikolka.vslice.components.crash.UserErrorSubstate;
 import mikolka.compatibility.freeplay.FreeplayHelpers;
@@ -55,6 +56,7 @@ class StoryMenuState extends MusicBeatState
 	public var loadedWeeks:Array<WeekData> = [];
 
 	var stickerSubState:StickerSubState;
+	var backButton:FunkinBackButton;
 
 	public function new(?stickers:StickerSubState = null)
 	{
@@ -247,6 +249,10 @@ class StoryMenuState extends MusicBeatState
 		});
 		add(scroll);
 		add(button);
+
+		hideTouchBack();
+		backButton = new FunkinBackButton(FlxG.width - 230 - MobileScaleMode.gameCutoutSize.x / 2, FlxG.height - 200, goBackToMenu, 1.0);
+		add(backButton);
 		#end
 
 		super.create();
@@ -262,7 +268,26 @@ class StoryMenuState extends MusicBeatState
 		#if TOUCH_CONTROLS_ALLOWED
 		removeTouchPad();
 		addTouchPad('LEFT_FULL', 'A_B_X_Y');
+		hideTouchBack();
+		if (backButton != null)
+			backButton.resetState();
 		#end
+	}
+
+	#if TOUCH_CONTROLS_ALLOWED
+	function hideTouchBack()
+	{
+		if (touchPad != null && touchPad.buttonB != null)
+			touchPad.buttonB.visible = touchPad.buttonB.active = false;
+	}
+	#end
+
+	function goBackToMenu()
+	{
+		if (movedBack || selectedWeek)
+			return;
+		movedBack = true;
+		MusicBeatState.switchState(new MainMenuState());
 	}
 
 	override function update(elapsed:Float)
