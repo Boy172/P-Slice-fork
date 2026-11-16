@@ -1,6 +1,8 @@
 package options;
 
 import mikolka.funkin.custom.mobile.MobileScaleMode;
+import mikolka.vslice.components.FunkinBackButton;
+import mikolka.vslice.components.VSliceBoldText;
 import mikolka.vslice.components.crash.UserErrorSubstate;
 import backend.StageData;
 import flixel.FlxObject;
@@ -19,7 +21,7 @@ class OptionsState extends MusicBeatState
 		#if TRANSLATIONS_ALLOWED  'Language', #end
 		#if (TOUCH_CONTROLS_ALLOWED || mobile)'Mobile Options' #end
 	];
-	private var grpOptions:FlxTypedGroup<Alphabet>;
+	private var grpOptions:FlxTypedGroup<VSliceBoldText>;
 	private static var curSelected:Int = 0;
 	private static var curSelectedPartial:Float = 0;
 	public static var menuBG:FlxSprite;
@@ -30,6 +32,10 @@ class OptionsState extends MusicBeatState
 	public static var funnyCam:FlxCamera;
 	private var camFollow:FlxObject;
 	private var camFollowPos:FlxObject;
+	private var backButton:FunkinBackButton;
+
+	static inline var LIST_SPACING:Float = 100;
+	static inline var SELECTED_OFFSET:Float = 250;
 
 	function openSelectedSubstate(label:String) {
 		if (label != "Adjust Delay and Combo")
@@ -43,7 +49,7 @@ class OptionsState extends MusicBeatState
 				if (controls.mobileC)
 				{
 					funnyCam.visible = persistentUpdate = true;
-					UserErrorSubstate.makeMessage("Unsupported controls", 
+					UserErrorSubstate.makeMessage("Unsupported controls",
 					"You don't need to go there on mobile!\n\nIf you wish to go there anyway\nSet 'Mobile Controls Opacity' to 0%");
 				}
 				else
@@ -90,47 +96,47 @@ class OptionsState extends MusicBeatState
 
 		var bg:FlxSprite = new FlxSprite().loadGraphic(Paths.image('menuDesat'));
 		bg.antialiasing = ClientPrefs.data.antialiasing;
-		bg.color = 0xFFea71fd;
+		bg.color = 0xFFB45A8C;
 		bg.setGraphicSize(Std.int(bg.width * 1.175));
 		bg.updateHitbox();
 
 		bg.screenCenter();
 		add(bg);
 
-		grpOptions = new FlxTypedGroup<Alphabet>();
+		grpOptions = new FlxTypedGroup<VSliceBoldText>();
 		add(grpOptions);
 
 		for (num => option in options)
 		{
-			var optionText:Alphabet = new Alphabet(0, 0, Language.getPhrase('options_$option', option), true);
-			optionText.screenCenter();
+			var optionText:VSliceBoldText = new VSliceBoldText(0, 0, Language.getPhrase('options_$option', option));
+			optionText.screenCenter(X);
 			optionText.x -= MobileScaleMode.gameCutoutSize.x / 2;
-			optionText.y += (92 * (num - (options.length / 2))) + 45;
+			optionText.y = LIST_SPACING * num;
 			optionText.cameras = [funnyCam];
 			grpOptions.add(optionText);
 		}
 
 		changeSelection(0,true);
+		camFollowPos.setPosition(635, camFollow.y);
 		ClientPrefs.saveSettings();
 
 		#if TOUCH_CONTROLS_ALLOWED
-		addTouchPad('UP_DOWN', 'A_B');
+		var button = new TouchZone(90,Std.int(FlxG.height / 2 - SELECTED_OFFSET - 10),FlxG.width,100,FlxColor.PURPLE);
 
-		var button = new TouchZone(90,270,FlxG.width,100,FlxColor.PURPLE);
-		
 		var scroll = new ScrollableObject(-0.01,100,0,FlxG.width-200,FlxG.height,button);
 		scroll.onPartialScroll.add(delta -> changeSelection(delta,false));
-		// scroll.onFullScroll.add(delta -> {
-		// 	FlxG.sound.play(Paths.sound('scrollMenu'), 0.4);
-		// });
-        scroll.onFullScrollSnap.add(() ->changeSelection(0,true));
+		scroll.onFullScrollSnap.add(() ->changeSelection(0,true));
 		scroll.onTap.add(() ->{
 			openSelectedSubstate(options[curSelected]);
 		});
 		add(scroll);
 		add(button);
+
+		backButton = new FunkinBackButton(FlxG.width - 230 - MobileScaleMode.gameCutoutSize.x / 2, FlxG.height - 200, () -> goBack(false), 1.0);
+		backButton.cameras = [funnyCam];
+		add(backButton);
 		#end
-		
+
 		super.create();
 	}
 
@@ -143,11 +149,8 @@ class OptionsState extends MusicBeatState
 		#end
 		controls.isInSubstate = false;
 		persistentUpdate = funnyCam.visible = true;
-		
-		#if TOUCH_CONTROLS_ALLOWED
-		removeTouchPad();
-		addTouchPad('UP_DOWN', 'A_B');
-		#end
+
+		if (backButton != null) backButton.resetState();
 	}
 
 	override function update(elapsed:Float) {
@@ -166,22 +169,24 @@ class OptionsState extends MusicBeatState
 		var lerpVal:Float = Math.max(0, Math.min(1, elapsed * 7.5));
 		camFollowPos.setPosition(635, FlxMath.lerp(camFollowPos.y, camFollow.y, lerpVal));
 
-
-		if (controls.BACK)
-		{
-			FlxG.sound.play(Paths.sound('cancelMenu'));
-			exiting = false;
-			if(onPlayState)
-			{
-				StageData.loadDirectory(PlayState.SONG);
-				LoadingState.loadAndSwitchState(new PlayState());
-				FlxG.sound.music.volume = 0;
-			}
-			else MusicBeatState.switchState(new MainMenuState());
-		}
+		if (controls.BACK) goBack();
 		else if (controls.ACCEPT) openSelectedSubstate(options[curSelected]);
 	}
-	
+
+	function goBack(playSound:Bool = true)
+	{
+		if (exiting) return;
+		exiting = true;
+		if (playSound) FlxG.sound.play(Paths.sound('cancelMenu'));
+		if(onPlayState)
+		{
+			StageData.loadDirectory(PlayState.SONG);
+			LoadingState.loadAndSwitchState(new PlayState());
+			FlxG.sound.music.volume = 0;
+		}
+		else MusicBeatState.switchState(new MainMenuState());
+	}
+
 	function changeSelection(delta:Float,usePrecision:Bool = false) {
 		if(usePrecision) {
 			if(delta != 0) FlxG.sound.play(Paths.sound('scrollMenu'), 0.4);
@@ -195,24 +200,22 @@ class OptionsState extends MusicBeatState
 		}
 		for (num => item in grpOptions.members)
 		{
-			item.targetY = num - curSelectedPartial;
 			item.alpha = 0.6;
 			if (num == curSelected)
 			{
 				item.alpha = 1;
-				var thing:Float = grpOptions.members.length > 6 ? grpOptions.members.length * 2 : 0;
 				var partialDiff = (curSelectedPartial-curSelected);
 				if(partialDiff > 0 && grpOptions.length > curSelected+1){
 					var nextItem = grpOptions.members[curSelected+1];
 					var camY = FlxMath.lerp(item.y,nextItem.y,partialDiff);
-					camFollow.setPosition(635, camY + 100 - thing);
+					camFollow.setPosition(635, camY + SELECTED_OFFSET);
 				}
 				else if(partialDiff < 0 && 0 <= curSelected-1) {
 					 var prevItem = grpOptions.members[curSelected-1];
 					 var camY = FlxMath.lerp(prevItem.y,item.y,1+partialDiff);
-					 camFollow.setPosition(635, camY + 100 - thing);
+					 camFollow.setPosition(635, camY + SELECTED_OFFSET);
 				}
-				else camFollow.setPosition(635, item.y + 100 - thing);
+				else camFollow.setPosition(635, item.y + SELECTED_OFFSET);
 			}
 		}
 
