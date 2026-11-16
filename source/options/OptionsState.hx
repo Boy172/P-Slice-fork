@@ -30,12 +30,19 @@ class OptionsState extends MusicBeatState
 
 	private var mainCam:FlxCamera;
 	public static var funnyCam:FlxCamera;
-	private var camFollow:FlxObject;
-	private var camFollowPos:FlxObject;
+	private var camFocus:FlxObject;
 	private var backButton:FunkinBackButton;
+	#if TOUCH_CONTROLS_ALLOWED
+	private var tapZone:TouchZone;
+	#end
 
 	static inline var LIST_SPACING:Float = 100;
-	static inline var SELECTED_OFFSET:Float = 250;
+	static inline var ROW_START_Y:Float = 107;
+	static inline var FOCUS_OFFSET:Float = 7;
+	static inline var DEADZONE_TOP:Float = 75;
+	static inline var DEADZONE_HEIGHT:Float = 610;
+	static inline var FOLLOW_LERP:Float = 0.085;
+	static inline var MIN_SCROLL_Y:Float = -75;
 
 	function openSelectedSubstate(label:String) {
 		if (label != "Adjust Delay and Combo")
@@ -84,11 +91,11 @@ class OptionsState extends MusicBeatState
 		funnyCam.bgColor.alpha = 0;
 		FlxG.cameras.add(funnyCam, false);
 
-		camFollow = new FlxObject(0, 0, 1, 1);
-		camFollowPos = new FlxObject(0, 0, 1, 1);
-		add(camFollow);
-		add(camFollowPos);
-		FlxG.cameras.list[FlxG.cameras.list.indexOf(funnyCam)].follow(camFollowPos);
+		camFocus = new FlxObject(0, 0, 140, 70);
+		add(camFocus);
+		funnyCam.follow(camFocus, null, FOLLOW_LERP);
+		funnyCam.deadzone.set(0, DEADZONE_TOP, funnyCam.width, DEADZONE_HEIGHT);
+		funnyCam.minScrollY = MIN_SCROLL_Y;
 
 		#if DISCORD_ALLOWED
 		DiscordClient.changePresence("Options Menu", null);
@@ -111,26 +118,25 @@ class OptionsState extends MusicBeatState
 			var optionText:VSliceBoldText = new VSliceBoldText(0, 0, Language.getPhrase('options_$option', option));
 			optionText.screenCenter(X);
 			optionText.x -= MobileScaleMode.gameCutoutSize.x / 2;
-			optionText.y = LIST_SPACING * num;
+			optionText.y = ROW_START_Y + LIST_SPACING * num;
 			optionText.cameras = [funnyCam];
 			grpOptions.add(optionText);
 		}
 
 		changeSelection(0,true);
-		camFollowPos.setPosition(635, camFollow.y);
 		ClientPrefs.saveSettings();
 
 		#if TOUCH_CONTROLS_ALLOWED
-		var button = new TouchZone(90,Std.int(FlxG.height / 2 - SELECTED_OFFSET - 10),FlxG.width,100,FlxColor.PURPLE);
+		tapZone = new TouchZone(90,Std.int(ROW_START_Y - 15),FlxG.width,100,FlxColor.PURPLE);
 
-		var scroll = new ScrollableObject(-0.01,100,0,FlxG.width-200,FlxG.height,button);
+		var scroll = new ScrollableObject(-0.01,100,0,FlxG.width-200,FlxG.height,tapZone);
 		scroll.onPartialScroll.add(delta -> changeSelection(delta,false));
 		scroll.onFullScrollSnap.add(() ->changeSelection(0,true));
 		scroll.onTap.add(() ->{
 			openSelectedSubstate(options[curSelected]);
 		});
 		add(scroll);
-		add(button);
+		add(tapZone);
 
 		backButton = new FunkinBackButton(FlxG.width - 230 - MobileScaleMode.gameCutoutSize.x / 2, FlxG.height - 200, () -> goBack(false), 1.0);
 		backButton.cameras = [funnyCam];
@@ -166,8 +172,9 @@ class OptionsState extends MusicBeatState
 			changeSelection(1,true);
 		}
 
-		var lerpVal:Float = Math.max(0, Math.min(1, elapsed * 7.5));
-		camFollowPos.setPosition(635, FlxMath.lerp(camFollowPos.y, camFollow.y, lerpVal));
+		#if TOUCH_CONTROLS_ALLOWED
+		if (tapZone != null) tapZone.y = grpOptions.members[curSelected].y - funnyCam.scroll.y - 15;
+		#end
 
 		if (controls.BACK) goBack();
 		else if (controls.ACCEPT) openSelectedSubstate(options[curSelected]);
@@ -199,26 +206,9 @@ class OptionsState extends MusicBeatState
 			curSelected = Math.round(curSelectedPartial);
 		}
 		for (num => item in grpOptions.members)
-		{
-			item.alpha = 0.6;
-			if (num == curSelected)
-			{
-				item.alpha = 1;
-				var partialDiff = (curSelectedPartial-curSelected);
-				if(partialDiff > 0 && grpOptions.length > curSelected+1){
-					var nextItem = grpOptions.members[curSelected+1];
-					var camY = FlxMath.lerp(item.y,nextItem.y,partialDiff);
-					camFollow.setPosition(635, camY + SELECTED_OFFSET);
-				}
-				else if(partialDiff < 0 && 0 <= curSelected-1) {
-					 var prevItem = grpOptions.members[curSelected-1];
-					 var camY = FlxMath.lerp(prevItem.y,item.y,1+partialDiff);
-					 camFollow.setPosition(635, camY + SELECTED_OFFSET);
-				}
-				else camFollow.setPosition(635, item.y + SELECTED_OFFSET);
-			}
-		}
+			item.alpha = (num == curSelected) ? 1 : 0.6;
 
+		camFocus.y = ROW_START_Y - FOCUS_OFFSET + LIST_SPACING * curSelectedPartial;
 	}
 
 	override function destroy()
