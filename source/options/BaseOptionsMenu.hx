@@ -11,6 +11,8 @@ import objects.AttachedText;
 import options.Option;
 import backend.InputFormatter;
 import mobile.options.MobileOptionsSubState;
+import mikolka.vslice.components.FunkinBackButton;
+import mikolka.vslice.components.SwipeValueInput;
 
 class BaseOptionsMenu extends MusicBeatSubstate
 {
@@ -31,11 +33,17 @@ class BaseOptionsMenu extends MusicBeatSubstate
 
 	public var bg:FlxSprite;
 
+	var swipe:SwipeValueInput;
+	var backButton:FunkinBackButton;
+	var closing:Bool = false;
+
 	public function new()
 	{
 		controls.isInSubstate = true;
 
 		super();
+
+		swipe = new SwipeValueInput();
 
 		if (title == null)
 			title = 'Options';
@@ -122,18 +130,62 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		var button = new TouchZone(85, 300, 1070, 100, FlxColor.PURPLE);
 
 		var scroll = new ScrollableObject(-0.008, 100, 0, FlxG.width - 200, FlxG.height, button);
-		scroll.onPartialScroll.add(delta -> changeSelection(delta, false));
+		scroll.onPartialScroll.add(delta ->
+		{
+			if (!swipe.horizontal)
+				changeSelection(delta, false);
+		});
 		// scroll.onFullScroll.add(delta ->
 		// {
 		// });
 		scroll.onFullScrollSnap.add(() -> changeSelection(0, true));
 		scroll.onTap.add(() ->
 		{
-			onAcceptPress();
+			if (!swipe.horizontal)
+				onAcceptPress();
 		});
 		add(scroll);
 		add(button);
+
+		setBackTouchButton(false);
+		backButton = new FunkinBackButton(FlxG.width - 230 - MobileScaleMode.gameCutoutSize.x / 2, FlxG.height - 200, () -> closeMenu(false), 1.0);
+		add(backButton);
 		#end
+	}
+
+	function setBackTouchButton(show:Bool)
+	{
+		#if TOUCH_CONTROLS_ALLOWED
+		if (touchPad != null && touchPad.buttonB != null)
+			touchPad.buttonB.visible = touchPad.buttonB.active = show;
+		#end
+	}
+
+	function closeMenu(playSound:Bool)
+	{
+		if (closing)
+			return;
+		closing = true;
+		close();
+		if (playSound)
+			FlxG.sound.play(Paths.sound('cancelMenu'));
+	}
+
+	function configureSwipe()
+	{
+		if (swipe == null || curOption == null)
+			return;
+
+		switch (curOption.type)
+		{
+			case INT, FLOAT, PERCENT:
+				var span:Float = (curOption.maxValue : Float) - (curOption.minValue : Float);
+				var change:Float = curOption.changeValue;
+				swipe.configure(change > 0 ? span / change : 0, false);
+			case STRING:
+				swipe.configure(0, true);
+			default:
+		}
 	}
 
 	public function addOption(option:Option)
@@ -158,6 +210,9 @@ class BaseOptionsMenu extends MusicBeatSubstate
 	{
 		super.update(elapsed);
 
+		swipe.enabled = !bindingKey && !closing;
+		swipe.update(elapsed);
+
 		if (bindingKey)
 		{
 			bindingKeyUpdate(elapsed);
@@ -176,10 +231,7 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		}
 
 		if (controls.BACK)
-		{
-			close();
-			FlxG.sound.play(Paths.sound('cancelMenu'));
-		}
+			closeMenu(true);
 
 		if (nextAccept <= 0)
 		{
@@ -189,16 +241,20 @@ class BaseOptionsMenu extends MusicBeatSubstate
 					if (controls.ACCEPT)
 						onAcceptPress();
 				default:
-					if (controls.UI_LEFT || controls.UI_RIGHT)
+					var uiLeft:Bool = controls.UI_LEFT || swipe.left;
+					var uiRight:Bool = controls.UI_RIGHT || swipe.right;
+					var uiLeftP:Bool = controls.UI_LEFT_P || swipe.leftP;
+					var uiRightP:Bool = controls.UI_RIGHT_P || swipe.rightP;
+					if (uiLeft || uiRight)
 					{
-						var pressed = (controls.UI_LEFT_P || controls.UI_RIGHT_P);
+						var pressed = (uiLeftP || uiRightP);
 						if (holdTime > 0.5 || pressed)
 						{
 							if (pressed)
 							{
 								var add:Dynamic = null;
 								if (curOption.type != STRING)
-									add = controls.UI_LEFT ? -curOption.changeValue : curOption.changeValue;
+									add = uiLeft ? -curOption.changeValue : curOption.changeValue;
 
 								switch (curOption.type)
 								{
@@ -222,7 +278,7 @@ class BaseOptionsMenu extends MusicBeatSubstate
 
 									case STRING:
 										var num:Int = curOption.curOption; // lol
-										if (controls.UI_LEFT_P)
+										if (uiLeftP)
 											--num;
 										else
 											num++;
@@ -244,7 +300,7 @@ class BaseOptionsMenu extends MusicBeatSubstate
 							}
 							else if (curOption.type != STRING)
 							{
-								holdValue += curOption.scrollSpeed * elapsed * (controls.UI_LEFT ? -1 : 1);
+								holdValue += curOption.scrollSpeed * elapsed * (uiLeft ? -1 : 1);
 								if (holdValue < curOption.minValue)
 									holdValue = curOption.minValue;
 								else if (holdValue > curOption.maxValue)
@@ -268,7 +324,7 @@ class BaseOptionsMenu extends MusicBeatSubstate
 						if (curOption.type != STRING)
 							holdTime += elapsed;
 					}
-					else if (controls.UI_LEFT_R || controls.UI_RIGHT_R)
+					else if (controls.UI_LEFT_R || controls.UI_RIGHT_R || swipe.leftR || swipe.rightR)
 					{
 						if (holdTime > 0.5)
 							FlxG.sound.play(Paths.sound('scrollMenu'));
@@ -337,6 +393,7 @@ class BaseOptionsMenu extends MusicBeatSubstate
 				add(bindingText2);
 
 				bindingKey = true;
+				setBackTouchButton(true);
 				holdingEsc = 0;
 				ClientPrefs.toggleVolumeKeys(false);
 				FlxG.sound.play(Paths.sound('scrollMenu'));
@@ -514,6 +571,7 @@ class BaseOptionsMenu extends MusicBeatSubstate
 	function closeBinding()
 	{
 		bindingKey = false;
+		setBackTouchButton(false);
 		bindingBlack.destroy();
 		remove(bindingBlack);
 
@@ -577,6 +635,7 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		descBox.updateHitbox();
 
 		curOption = optionsArray[curSelected]; // shorter lol
+		configureSwipe();
 	}
 
 	function reloadCheckboxes()
