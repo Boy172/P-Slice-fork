@@ -57,10 +57,8 @@ jobs:
           enableCrossOsArchive: true
           path: |
             .haxelib/
-          restore-keys: |
-            ${{ inputs.cacheLibrariesPath }}
 
-      - name: Locate OpenFL source
+      - name: Inspect OpenFL and FlxAnimate
         run: |
           echo "=== Haxelib configuration ==="
           haxelib config
@@ -68,14 +66,35 @@ jobs:
           echo "=== OpenFL installation ==="
           haxelib path openfl
 
-          echo "=== OpenGLRenderer.hx ==="
-          find .haxelib -type f -name "OpenGLRenderer.hx" 2>/dev/null || true
+          echo "=== OpenFL version ==="
+          haxelib list | grep -i openfl || true
+
+          OPENFL_FILE=".haxelib/openfl/git/src/openfl/display/OpenGLRenderer.hx"
+
+          echo "=== OpenGLRenderer location ==="
+          find .haxelib -type f -name "OpenGLRenderer.hx" -print
+
+          if [ -f "$OPENFL_FILE" ]; then
+            echo "=== Complex blends ==="
+            grep -n -C 5 "__complexBlendsSupported" "$OPENFL_FILE" || true
+
+            echo "=== Coherent blends ==="
+            grep -n -C 5 "__coherentBlendsSupported" "$OPENFL_FILE" || true
+          else
+            echo "OpenGLRenderer.hx not found at expected path."
+          fi
 
           echo "=== RenderTexture.hx ==="
-          find .haxelib -type f -name "RenderTexture.hx" 2>/dev/null || true
+          find .haxelib -type f -name "RenderTexture.hx" -print
 
           echo "=== FilterRenderer.hx ==="
-          find .haxelib -type f -name "FilterRenderer.hx" 2>/dev/null || true
+          find .haxelib -type f -name "FilterRenderer.hx" -print
+
+          echo "=== FlxAnimate source files ==="
+          find .haxelib/flxanimate -type f -name "*.hx" 2>/dev/null | head -80
+
+          echo "=== FlxAnimate Haxelib entry ==="
+          haxelib path flxanimate || true
 
       - name: Restore existing build cache for faster compilation
         id: load-cache
@@ -94,59 +113,71 @@ jobs:
 
       - name: Configure Android
         if: inputs.exportPath == 'android'
-        env:
-          PLAYSTORE_FIREBASE: ${{ secrets.PLAYSTORE_FIREBASE }}
         run: |
           haxelib run lime config ANDROID_SDK $ANDROID_HOME
           haxelib run lime config ANDROID_NDK_ROOT $ANDROID_NDK_HOME
           haxelib run lime config JAVA_HOME $JAVA_HOME_17_X64
           haxelib run lime config ANDROID_SETUP true
-          printf '%s' "$PLAYSTORE_FIREBASE" > ./setup/google-services.json
 
-      - name: Configure iOS
-        if: inputs.name == 'iOS'
-        env:
-          PLAYSTORE_FIREBASE_IOS: ${{ secrets.PLAYSTORE_FIREBASE_IOS }}
+      - name: Remove Firebase from Lime Android template
+        if: inputs.exportPath == 'android'
         run: |
-          printf '%s' "$PLAYSTORE_FIREBASE_IOS" > ./setup/GoogleService-Info.plist
+          FILE=".haxelib/lime/git/templates/android/template/app/build.gradle"
+
+          if [ ! -f "$FILE" ]; then
+            echo "ERROR: Lime Android build.gradle template not found"
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          path = Path(".haxelib/lime/git/templates/android/template/app/build.gradle")
+          text = path.read_text()
+
+          text = re.sub(
+              r"(?m)^[ \t]*apply plugin: ['\"]com\.google\.firebase\.crashlytics['\"][ \t]*\n?",
+              "",
+              text
+          )
+
+          text = re.sub(
+              r"(?ms)^[ \t]*firebaseCrashlytics\s*\{.*?^[ \t]*\}[ \t]*\n?",
+              "",
+              text
+          )
+
+          path.write_text(text)
+
+          print("Firebase Crashlytics configuration removed.")
+          PY
+
+          echo "=== Checking Firebase references ==="
+
+          if grep -n -E 'firebaseCrashlytics|com.google.firebase.crashlytics' "$FILE"; then
+            echo "ERROR: Firebase references still exist."
+            exit 1
+          else
+            echo "No Firebase Crashlytics references found."
+          fi
 
       - name: Compile
         run: haxelib run lime build ${{ inputs.buildArgs }}
 
-      - name: Upload debugging symbols (Android)
+      - name: Verify Android APK
         if: inputs.exportPath == 'android'
-        run: sh ./setup/firebase_spell.sh
-
-      - name: Upload debugging symbols (iOS)
-        if: inputs.name == 'iOS'
-        run: sh ./setup/firebase_ios.sh
-
-      - name: Sign APK with the proper key
-        if: inputs.exportPath == 'android'
-        env:
-          OUT_DIR: ./export/release/android/bin/app/build/outputs/apk/release/
-          SIGNING_KEY: ${{ secrets.MIKOLKA_PASSWORD }}
-          SIGNING_ALIAS: pslice
-          SIGNING_FILE: ${{ secrets.MIKOLKA_KEYSTORE }}
         run: |
-          rm -f ./key.keystore
-          echo "$SIGNING_FILE" | base64 -d > ./key.keystore
-          sha256sum ./key.keystore
+          APK="./export/release/android/bin/app/build/outputs/apk/release/PSliceEngine-release.apk"
 
-          mv '${{env.OUT_DIR}}PSliceEngine-release.apk' '${{env.OUT_DIR}}PSliceEngine-unsigned.apk'
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK not found at expected location."
+            find export/release/android -name "*.apk" -type f
+            exit 1
+          fi
 
-          $ANDROID_HOME/build-tools/35.0.1/zipalign -P 16 -f -v 4 \
-            '${{env.OUT_DIR}}PSliceEngine-unsigned.apk' \
-            '${{env.OUT_DIR}}PSliceEngine-release.apk' > /dev/null
-
-          $ANDROID_HOME/build-tools/35.0.1/apksigner sign \
-            --ks key.keystore \
-            --ks-key-alias $SIGNING_ALIAS \
-            --ks-pass "env:SIGNING_KEY" \
-            --key-pass "env:SIGNING_KEY" \
-            '${{env.OUT_DIR}}PSliceEngine-release.apk'
-
-          rm '${{env.OUT_DIR}}PSliceEngine-unsigned.apk'
+          echo "APK generated successfully."
+          ls -lh "$APK"
 
       - name: Make IPA
         if: inputs.name == 'iOS'
@@ -162,34 +193,3 @@ jobs:
           name: ${{ inputs.artifactName }}
           path: ${{ inputs.artifactPath }}
           if-no-files-found: error
-
-      - name: Clearing already existing cache
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const caches = await github.rest.actions.getActionsCacheList({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            })
-
-            for (const cache of caches.data.actions_caches) {
-              if (cache.key == "${{ inputs.cachePath }}") {
-                console.log('Clearing ' + cache.key + '...')
-                await github.rest.actions.deleteActionsCacheById({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  cache_id: cache.id,
-                })
-                console.log("Cache cleared.")
-              }
-            }
-
-      - name: Uploading new cache
-        uses: actions/cache@v3
-        with:
-          key: ${{ inputs.cachePath }}
-          path: |
-            export/release/${{ inputs.exportPath }}/haxe/
-            export/release/${{ inputs.exportPath }}/obj/
-          restore-keys: |
-            ${{ inputs.cachePath }}
