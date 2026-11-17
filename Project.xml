@@ -176,6 +176,7 @@
 
 	<haxelib name="hxdiscord_rpc" if="DISCORD_ALLOWED" />
 	<haxelib name="flxanimate" />
+	<haxelib name="flixel-animate" />
 
 	<config:ios category_type="public.app-category.music-games" />
 	<config:mac category_type="public.app-category.music-games" />
