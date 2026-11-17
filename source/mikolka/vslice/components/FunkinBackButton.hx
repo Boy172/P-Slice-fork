@@ -13,6 +13,7 @@ class FunkinBackButton extends FlxSprite
 	public var onConfirmEnd(default, null):FlxSignal = new FlxSignal();
 	public var enabled:Bool = true;
 	public var playSound:Bool = true;
+	public var handleAndroidBack:Bool = true;
 	public var restingOpacity:Float;
 	public var confirming(get, never):Bool;
 
@@ -51,7 +52,7 @@ class FunkinBackButton extends FlxSprite
 	override function update(elapsed:Float):Void
 	{
 		#if android
-		if (FlxG.android.justReleased.BACK) onConfirmEnd.dispatch();
+		if (handleAndroidBack && FlxG.android.justReleased.BACK) onConfirmEnd.dispatch();
 		#end
 
 		super.update(elapsed);
