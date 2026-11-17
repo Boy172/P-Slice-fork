@@ -1,195 +1,157 @@
 on:
-  workflow_call:
-    inputs:
-      name:
-        required: true
-        type: string
-      os:
-        required: true
-        type: string
-      buildArgs:
-        required: true
-        type: string
-      artifactName:
-        required: true
-        type: string
-      artifactPath:
-        required: true
-        type: string
-      cachePath:
-        required: true
-        type: string
-      cacheLibrariesPath:
-        required: true
-        type: string
-      exportPath:
-        required: true
-        type: string
+workflow_call:
+inputs:
+name:
+required: true
+type: string
+os:
+required: true
+type: string
+buildArgs:
+required: true
+type: string
+artifactName:
+required: true
+type: string
+artifactPath:
+required: true
+type: string
+cachePath:
+required: true
+type: string
+cacheLibrariesPath:
+required: true
+type: string
+exportPath:
+required: true
+type: string
 
 env:
-  HAXE_VERSION: 4.3.6
-  PROJECT_NAME: PSliceEngine
+HAXE_VERSION: 4.3.6
+PROJECT_NAME: PSliceEngine
 
 jobs:
-  build:
-    name: Build
-    runs-on: ${{ inputs.os }}
+build:
+name: Build
+runs-on: ${{ inputs.os }}
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@main
+steps:  
+  - name: Checkout  
+    uses: actions/checkout@main  
 
-      - name: Setup Haxe
-        uses: krdlab/setup-haxe@master
-        with:
-          haxe-version: ${{ env.HAXE_VERSION }}
+  - name: Setup Haxe  
+    uses: krdlab/setup-haxe@master  
+    with:  
+      haxe-version: ${{ env.HAXE_VERSION }}  
 
-      - name: Set XCode app
-        if: inputs.os == 'macos-15'
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+  - name: Set XCode app  
+    if: inputs.os == 'macos-15'  
+    run: sudo xcode-select -s /Applications/Xcode_16.4.app  
 
-      - name: Restore Libraries for compilation
-        id: load-lib-cache
-        uses: actions/cache@v3
-        with:
-          key: ${{ inputs.cacheLibrariesPath }}
-          fail-on-cache-miss: true
-          enableCrossOsArchive: true
-          path: |
-            .haxelib/
+  - name: Restore Libraries for compilation  
+    id: load-lib-cache  
+    uses: actions/cache@v3  
+    with:  
+      key: ${{ inputs.cacheLibrariesPath }}  
+      fail-on-cache-miss: true  
+      enableCrossOsArchive: true  
+      path: |  
+        .haxelib/  
 
-      - name: Inspect OpenFL and FlxAnimate
-        run: |
-          echo "=== Haxelib configuration ==="
-          haxelib config
+  - name: Restore existing build cache for faster compilation  
+    id: load-cache  
+    uses: actions/cache@v3  
+    with:  
+      key: ${{ inputs.cachePath }}  
+      path: |  
+        export/release/${{ inputs.exportPath }}/haxe/  
+        export/release/${{ inputs.exportPath }}/obj/  
+      restore-keys: |  
+        cache-build-${{ inputs.exportPath }}  
 
-          echo "=== OpenFL installation ==="
-          haxelib path openfl
+  - name: Install libVLC  
+    if: inputs.exportPath == 'linux'  
+    run: sudo apt install libvlc-dev libvlccore-dev  
 
-          echo "=== OpenFL version ==="
-          haxelib list | grep -i openfl || true
+  - name: Configure Android  
+    if: inputs.exportPath == 'android'  
+    run: |  
+      haxelib run lime config ANDROID_SDK $ANDROID_HOME  
+      haxelib run lime config ANDROID_NDK_ROOT $ANDROID_NDK_HOME  
+      haxelib run lime config JAVA_HOME $JAVA_HOME_17_X64  
+      haxelib run lime config ANDROID_SETUP true  
 
-          OPENFL_FILE=".haxelib/openfl/git/src/openfl/display/OpenGLRenderer.hx"
+  - name: Remove Firebase from Lime Android template  
+    if: inputs.exportPath == 'android'  
+    run: |  
+      FILE=".haxelib/lime/git/templates/android/template/app/build.gradle"  
 
-          echo "=== OpenGLRenderer location ==="
-          find .haxelib -type f -name "OpenGLRenderer.hx" -print
+      if [ ! -f "$FILE" ]; then  
+        echo "ERROR: Lime Android build.gradle template not found"  
+        exit 1  
+      fi  
 
-          if [ -f "$OPENFL_FILE" ]; then
-            echo "=== Complex blends ==="
-            grep -n -C 5 "__complexBlendsSupported" "$OPENFL_FILE" || true
+      python3 - <<'PY'  
+      import re  
+      from pathlib import Path  
 
-            echo "=== Coherent blends ==="
-            grep -n -C 5 "__coherentBlendsSupported" "$OPENFL_FILE" || true
-          else
-            echo "OpenGLRenderer.hx not found at expected path."
-          fi
+      path = Path(".haxelib/lime/git/templates/android/template/app/build.gradle")  
+      text = path.read_text()  
 
-          echo "=== RenderTexture.hx ==="
-          find .haxelib -type f -name "RenderTexture.hx" -print
+      text = re.sub(  
+          r"(?m)^[ \t]*apply plugin: ['\"]com\.google\.firebase\.crashlytics['\"][ \t]*\n?",  
+          "",  
+          text  
+      )  
 
-          echo "=== FilterRenderer.hx ==="
-          find .haxelib -type f -name "FilterRenderer.hx" -print
+      text = re.sub(  
+          r"(?ms)^[ \t]*firebaseCrashlytics\s*\{.*?^[ \t]*\}[ \t]*\n?",  
+          "",  
+          text  
+      )  
 
-          echo "=== FlxAnimate source files ==="
-          find .haxelib/flxanimate -type f -name "*.hx" 2>/dev/null | head -80
+      path.write_text(text)  
 
-          echo "=== FlxAnimate Haxelib entry ==="
-          haxelib path flxanimate || true
+      print("Firebase Crashlytics configuration removed.")  
+      PY  
 
-      - name: Restore existing build cache for faster compilation
-        id: load-cache
-        uses: actions/cache@v3
-        with:
-          key: ${{ inputs.cachePath }}
-          path: |
-            export/release/${{ inputs.exportPath }}/haxe/
-            export/release/${{ inputs.exportPath }}/obj/
-          restore-keys: |
-            cache-build-${{ inputs.exportPath }}
+      echo "=== Checking Firebase references ==="  
 
-      - name: Install libVLC
-        if: inputs.exportPath == 'linux'
-        run: sudo apt install libvlc-dev libvlccore-dev
+      if grep -n -E 'firebaseCrashlytics|com.google.firebase.crashlytics' "$FILE"; then  
+        echo "ERROR: Firebase references still exist."  
+        exit 1  
+      else  
+        echo "No Firebase Crashlytics references found."  
+      fi  
 
-      - name: Configure Android
-        if: inputs.exportPath == 'android'
-        run: |
-          haxelib run lime config ANDROID_SDK $ANDROID_HOME
-          haxelib run lime config ANDROID_NDK_ROOT $ANDROID_NDK_HOME
-          haxelib run lime config JAVA_HOME $JAVA_HOME_17_X64
-          haxelib run lime config ANDROID_SETUP true
+  - name: Compile  
+    run: haxelib run lime build ${{ inputs.buildArgs }}  
 
-      - name: Remove Firebase from Lime Android template
-        if: inputs.exportPath == 'android'
-        run: |
-          FILE=".haxelib/lime/git/templates/android/template/app/build.gradle"
+  - name: Verify Android APK  
+    if: inputs.exportPath == 'android'  
+    run: |  
+      APK="./export/release/android/bin/app/build/outputs/apk/release/PSliceEngine-release.apk"  
 
-          if [ ! -f "$FILE" ]; then
-            echo "ERROR: Lime Android build.gradle template not found"
-            exit 1
-          fi
+      if [ ! -f "$APK" ]; then  
+        echo "ERROR: APK not found at expected location."  
+        find export/release/android -name "*.apk" -type f  
+        exit 1  
+      fi  
 
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
+      echo "APK generated successfully."  
+      ls -lh "$APK"  
 
-          path = Path(".haxelib/lime/git/templates/android/template/app/build.gradle")
-          text = path.read_text()
+  - name: Make IPA  
+    if: inputs.name == 'iOS'  
+    run: |  
+      cd export/release/ios/build/Release-iphoneos  
+      mkdir Payload  
+      mv *.app Payload  
+      zip -r ${{ env.PROJECT_NAME }}.ipa Payload  
 
-          text = re.sub(
-              r"(?m)^[ \t]*apply plugin: ['\"]com\.google\.firebase\.crashlytics['\"][ \t]*\n?",
-              "",
-              text
-          )
-
-          text = re.sub(
-              r"(?ms)^[ \t]*firebaseCrashlytics\s*\{.*?^[ \t]*\}[ \t]*\n?",
-              "",
-              text
-          )
-
-          path.write_text(text)
-
-          print("Firebase Crashlytics configuration removed.")
-          PY
-
-          echo "=== Checking Firebase references ==="
-
-          if grep -n -E 'firebaseCrashlytics|com.google.firebase.crashlytics' "$FILE"; then
-            echo "ERROR: Firebase references still exist."
-            exit 1
-          else
-            echo "No Firebase Crashlytics references found."
-          fi
-
-      - name: Compile
-        run: haxelib run lime build ${{ inputs.buildArgs }}
-
-      - name: Verify Android APK
-        if: inputs.exportPath == 'android'
-        run: |
-          APK="./export/release/android/bin/app/build/outputs/apk/release/PSliceEngine-release.apk"
-
-          if [ ! -f "$APK" ]; then
-            echo "ERROR: APK not found at expected location."
-            find export/release/android -name "*.apk" -type f
-            exit 1
-          fi
-
-          echo "APK generated successfully."
-          ls -lh "$APK"
-
-      - name: Make IPA
-        if: inputs.name == 'iOS'
-        run: |
-          cd export/release/ios/build/Release-iphoneos
-          mkdir Payload
-          mv *.app Payload
-          zip -r ${{ env.PROJECT_NAME }}.ipa Payload
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@main
-        with:
-          name: ${{ inputs.artifactName }}
-          path: ${{ inputs.artifactPath }}
-          if-no-files-found: error
+  - name: Upload Artifact  
+    uses: actions/upload-artifact@main  
+    with:  
+      name: ${{ inputs.artifactName }}  
+      path: ${{ inputs.artifactPath }}  
+      if-no-files-found: error
