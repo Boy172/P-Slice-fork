@@ -3,6 +3,7 @@ package mikolka.vslice.freeplay;
 import mikolka.vslice.freeplay.capsule.SongMenuItem;
 import mikolka.vslice.freeplay.capsule.SongCapsuleGroup;
 import mikolka.funkin.custom.mobile.MobileScaleMode;
+import mikolka.vslice.components.FunkinBackButton;
 import flixel.math.FlxRect;
 import mikolka.vslice.ui.MainMenuState;
 import mikolka.vslice.freeplay.backcards.LuaCard;
@@ -229,6 +230,9 @@ class FreeplayState extends MusicBeatSubstate
 	var styleData:Null<FreeplayStyle> = null;
 
 	var fromCharSelect:Null<Bool> = null;
+
+	var backButton:FunkinBackButton;
+	var backRequested:Bool = false;
 
 	public function new(?params:FreeplayStateParams, ?stickers:StickerSubState)
 	{
@@ -794,6 +798,16 @@ class FreeplayState extends MusicBeatSubstate
 		#if TOUCH_CONTROLS_ALLOWED
 		addTouchPad('NONE', 'A_B_C_X_Y_F');
 		addTouchPadCamera();
+		hideTouchBack();
+
+		backButton = new FunkinBackButton(FlxG.width - 230 - MobileScaleMode.gameCutoutSize.x / 2, FlxG.height - 200, () -> { backRequested = true; }, 1.0);
+		backButton.playSound = false;
+		backButton.cameras = [funnyCam];
+		exitMovers.set([backButton], {
+			x: FlxG.width,
+			speed: 0.3
+		});
+		add(backButton);
 		if (prepForNewRank)
 		{
 			final lastAlpha:Float = touchPad.alpha;
@@ -1304,8 +1318,19 @@ class FreeplayState extends MusicBeatSubstate
 		removeTouchPad();
 		addTouchPad('UP_DOWN', 'A_B_C_X_Y_F');
 		addTouchPadCamera();
+		hideTouchBack();
+		if (backButton != null)
+			backButton.resetState();
 		#end
 	}
+
+	#if TOUCH_CONTROLS_ALLOWED
+	function hideTouchBack()
+	{
+		if (touchPad != null && touchPad.buttonB != null)
+			touchPad.buttonB.visible = touchPad.buttonB.active = false;
+	}
+	#end
 
 	function tryOpenCharSelect():Void
 	{
@@ -1789,7 +1814,10 @@ class FreeplayState extends MusicBeatSubstate
 			diffSelLeft.setPress(false);
 		}
 
-		if (controls.BACK #if TOUCH_CONTROLS_ALLOWED || touchPad?.buttonB.justPressed #end && !busy)
+		var backNow:Bool = backRequested;
+		backRequested = false;
+
+		if (controls.BACK #if TOUCH_CONTROLS_ALLOWED || touchPad?.buttonB.justPressed #end || backNow && !busy)
 		{
 			busy = true;
 			FlxTween.globalManager.clear();
