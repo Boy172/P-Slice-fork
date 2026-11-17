@@ -234,6 +234,18 @@ class FreeplayState extends MusicBeatSubstate
 	var backButton:FunkinBackButton;
 	var backRequested:Bool = false;
 
+	#if TOUCH_CONTROLS_ALLOWED
+	var shortcutTouchId:Int = -1;
+	var shortcutTarget:Int = 0;
+	var shortcutStartX:Float = 0;
+	var shortcutStartY:Float = 0;
+	var shortcutTime:Float = 0;
+	var shortcutMoved:Bool = false;
+	var favHoldConsumed:Bool = false;
+	var djTapRequested:Bool = false;
+	var favTouchRequested:Bool = false;
+	#end
+
 	public function new(?params:FreeplayStateParams, ?stickers:StickerSubState)
 	{
 		instance = this;
@@ -546,7 +558,7 @@ class FreeplayState extends MusicBeatSubstate
 		charSelectHint.alignment = CENTER;
 		charSelectHint.font = "5by7";
 		charSelectHint.color = 0xFF5F5F5F;
-		charSelectHint.text = controls.mobileC ? 'Touch [ X ] to change characters' : 'Press [ ${FunkinControls.FREEPLAY_CHAR_name()} ] to change characters'; // ?! ${controls.getDialogueNameFromControl(FREEPLAY_CHAR_SELECT, true)}
+		charSelectHint.text = controls.mobileC ? 'Tap the DJ to change characters' : 'Press [ ${FunkinControls.FREEPLAY_CHAR_name()} ] to change characters'; // ?! ${controls.getDialogueNameFromControl(FREEPLAY_CHAR_SELECT, true)}
 		charSelectHint.y -= 100;
 		FlxTween.tween(charSelectHint, {y: charSelectHint.y + 100}, 0.8, {ease: FlxEase.quartOut});
 
@@ -851,7 +863,7 @@ class FreeplayState extends MusicBeatSubstate
 		});
 		scroll.onTap.add(() ->
 		{
-			if (busy)
+			if (busy || favHoldConsumed)
 				return;
 			var daSongCapsule:SongMenuItem = curCapsule;
 			daSongCapsule.onConfirm();
@@ -1526,6 +1538,72 @@ class FreeplayState extends MusicBeatSubstate
 
 	var hintTimer:Float = 0;
 
+	#if TOUCH_CONTROLS_ALLOWED
+	function updateTouchShortcuts(elapsed:Float):Void
+	{
+		djTapRequested = false;
+		favTouchRequested = false;
+
+		if (busy)
+		{
+			shortcutTouchId = -1;
+			return;
+		}
+
+		for (touch in FlxG.touches.list)
+		{
+			if (touch == null)
+				continue;
+
+			if (shortcutTouchId == -1)
+			{
+				if (!touch.justPressed)
+					continue;
+
+				favHoldConsumed = false;
+
+				var target:Int = 0;
+				if (dj != null && touch.overlaps(dj, funnyCam))
+					target = 1;
+				else if (curSelected != 0 && curCapsule != null && touch.overlaps(curCapsule, funnyCam))
+					target = 2;
+
+				if (target != 0)
+				{
+					shortcutTouchId = touch.touchPointID;
+					shortcutTarget = target;
+					shortcutStartX = touch.viewX;
+					shortcutStartY = touch.viewY;
+					shortcutTime = 0;
+					shortcutMoved = false;
+				}
+			}
+			else if (touch.touchPointID == shortcutTouchId)
+			{
+				if (Math.abs(touch.viewX - shortcutStartX) > 24 || Math.abs(touch.viewY - shortcutStartY) > 24)
+					shortcutMoved = true;
+
+				if (touch.justReleased)
+				{
+					if (shortcutTarget == 1 && !shortcutMoved && shortcutTime < 0.5)
+						djTapRequested = true;
+					shortcutTouchId = -1;
+				}
+				else
+				{
+					shortcutTime += elapsed;
+
+					if (shortcutTarget == 2 && !shortcutMoved && !favHoldConsumed && shortcutTime >= 0.5)
+					{
+						favHoldConsumed = true;
+						favTouchRequested = true;
+					}
+				}
+			}
+		}
+	}
+	#end
+
 	override function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
@@ -1569,9 +1647,13 @@ class FreeplayState extends MusicBeatSubstate
 		}
 		#end // ^<-- FEATURE_DEBUG_FUNCTIONS
 
+		#if TOUCH_CONTROLS_ALLOWED
+		updateTouchShortcuts(elapsed);
+		#end
+
 		if (!busy)
 		{
-			if (FunkinControls.FREEPLAY_CHAR #if TOUCH_CONTROLS_ALLOWED || touchPad?.buttonX.justPressed #end)
+			if (FunkinControls.FREEPLAY_CHAR #if TOUCH_CONTROLS_ALLOWED || touchPad?.buttonX.justPressed || djTapRequested #end)
 			{
 				tryOpenCharSelect();
 			} // ? Those are new too
@@ -1603,7 +1685,7 @@ class FreeplayState extends MusicBeatSubstate
 			} // ? //!
 		}
 
-		if (controls.FAVORITE #if TOUCH_CONTROLS_ALLOWED || touchPad?.buttonF.justPressed #end && !busy) // ? change control binding
+		if (controls.FAVORITE #if TOUCH_CONTROLS_ALLOWED || touchPad?.buttonF.justPressed || favTouchRequested #end && !busy) // ? change control binding
 		{
 			var targetSong = curCapsule?.songData;
 			if (targetSong != null)
