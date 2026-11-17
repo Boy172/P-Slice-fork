@@ -2,13 +2,21 @@ package mikolka.vslice.components;
 
 import flixel.FlxG;
 import flixel.FlxState;
+import mikolka.funkin.custom.mobile.MobileScaleMode;
 
 class TouchPadHider
 {
 	public static var hidden(get, set):Bool;
 
+	static inline var EDITORS_PREFIX:String = 'states.editors.';
+	static inline var EDITORS_MENU:String = 'states.editors.MasterEditorMenu';
+	static inline var PLAYSTATE:String = 'states.PlayState';
+
 	static var started:Bool = false;
 	static var lastHidden:Bool = false;
+	static var editorBack:FunkinBackButton = null;
+	static var editorBackOwner:FlxState = null;
+	static var leaving:Bool = false;
 
 	public static function initialize():Void
 	{
@@ -40,7 +48,12 @@ class TouchPadHider
 
 		var root:FlxState = FlxG.state;
 		if (root == null) return;
-		if (hide && Type.getClassName(Type.getClass(root)) == 'states.PlayState') return;
+
+		var rootName:String = Type.getClassName(Type.getClass(root));
+
+		if (hide && (rootName == PLAYSTATE || (rootName.indexOf(EDITORS_PREFIX) == 0 && rootName != EDITORS_MENU))) return;
+
+		if (hide && rootName == EDITORS_MENU) ensureEditorBack(root);
 
 		var current:FlxState = root;
 		while (current != null)
@@ -53,5 +66,23 @@ class TouchPadHider
 			}
 			current = current.subState;
 		}
+	}
+
+	static function ensureEditorBack(root:FlxState):Void
+	{
+		if (editorBack != null && editorBackOwner == root) return;
+
+		leaving = false;
+		editorBackOwner = root;
+		editorBack = new FunkinBackButton(FlxG.width - 230 - MobileScaleMode.gameCutoutSize.x / 2, 10, leaveEditors, 1.0);
+		editorBack.handleAndroidBack = false;
+		root.add(editorBack);
+	}
+
+	static function leaveEditors():Void
+	{
+		if (leaving) return;
+		leaving = true;
+		MusicBeatState.switchState(new MainMenuState());
 	}
 }
