@@ -12,6 +12,7 @@ class FunkinBackButton extends FlxSprite
 	public var onConfirmStart(default, null):FlxSignal = new FlxSignal();
 	public var onConfirmEnd(default, null):FlxSignal = new FlxSignal();
 	public var enabled:Bool = true;
+	public var playSound:Bool = true;
 	public var restingOpacity:Float;
 	public var confirming(get, never):Bool;
 
@@ -118,7 +119,8 @@ class FunkinBackButton extends FlxSprite
 		animation.play('confirm');
 		alpha = 1;
 
-		FlxG.sound.play(Paths.sound('cancelMenu'));
+		if (playSound)
+			FlxG.sound.play(Paths.sound('cancelMenu'));
 		onConfirmStart.dispatch();
 
 		animation.onFinish.addOnce(function(name:String)
