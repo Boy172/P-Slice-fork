@@ -2,6 +2,8 @@ package options;
 
 import mikolka.funkin.custom.mobile.MobileScaleMode;
 import mikolka.vslice.components.FunkinBackButton;
+import mikolka.vslice.components.TouchPadHider;
+import mikolka.vslice.components.TouchPointerPlugin;
 import mikolka.vslice.components.VSliceBoldText;
 import mikolka.vslice.components.crash.UserErrorSubstate;
 import backend.StageData;
@@ -18,6 +20,9 @@ class OptionsState extends MusicBeatState
 		'Gameplay',
 		'P-Slice Options',
 		'V-Slice Options',
+		'Editors',
+		#if (TOUCH_CONTROLS_ALLOWED || mobile) 'Hide Touch Buttons', #end
+		#if (TOUCH_CONTROLS_ALLOWED || mobile) 'Hide Touch Indicator', #end
 		#if TRANSLATIONS_ALLOWED  'Language', #end
 		#if (TOUCH_CONTROLS_ALLOWED || mobile)'Mobile Options' #end
 	];
@@ -44,7 +49,86 @@ class OptionsState extends MusicBeatState
 	static inline var FOLLOW_LERP:Float = 0.085;
 	static inline var MIN_SCROLL_Y:Float = -75;
 
+	static inline var TOUCH_TOGGLE:String = 'Hide Touch Buttons';
+	static inline var POINTER_TOGGLE:String = 'Hide Touch Indicator';
+
+	function touchButtonsHidden():Bool
+	{
+		return TouchPadHider.hidden;
+	}
+
+	function itemLabel(option:String):String
+	{
+		if (option == TOUCH_TOGGLE && touchButtonsHidden())
+			return Language.getPhrase('options_Show Touch Buttons', 'Show Touch Buttons');
+		if (option == POINTER_TOGGLE && !TouchPointerPlugin.isSavedEnabled())
+			return Language.getPhrase('options_Show Touch Indicator', 'Show Touch Indicator');
+		return Language.getPhrase('options_$option', option);
+	}
+
+	function centerItem(item:VSliceBoldText)
+	{
+		item.screenCenter(X);
+	}
+
+	function toggleTouchButtons()
+	{
+		TouchPadHider.hidden = !TouchPadHider.hidden;
+
+		for (num => option in options)
+		{
+			if (option != TOUCH_TOGGLE)
+				continue;
+			var item:VSliceBoldText = grpOptions.members[num];
+			item.text = itemLabel(option);
+			centerItem(item);
+		}
+
+		FlxG.sound.play(Paths.sound('scrollMenu'));
+	}
+
+	function toggleTouchIndicator()
+	{
+		TouchPointerPlugin.initialize();
+		TouchPointerPlugin.toggle();
+
+		for (num => option in options)
+		{
+			if (option != POINTER_TOGGLE)
+				continue;
+			var item:VSliceBoldText = grpOptions.members[num];
+			item.text = itemLabel(option);
+			centerItem(item);
+		}
+
+		FlxG.sound.play(Paths.sound('scrollMenu'));
+	}
+
 	function openSelectedSubstate(label:String) {
+		if (label == POINTER_TOGGLE)
+		{
+			toggleTouchIndicator();
+			return;
+		}
+
+		if (label == TOUCH_TOGGLE)
+		{
+			toggleTouchButtons();
+			return;
+		}
+
+		if (label == 'Editors')
+		{
+			if (onPlayState)
+			{
+				FlxG.sound.play(Paths.sound('cancelMenu'));
+				return;
+			}
+			ClientPrefs.saveSettings();
+			MusicBeatState.switchState(new states.editors.MasterEditorMenu());
+			return;
+		}
+
 		if (label != "Adjust Delay and Combo")
 			funnyCam.visible = persistentUpdate = false;
 
@@ -86,6 +170,7 @@ class OptionsState extends MusicBeatState
 
 	override function create()
 	{
+		TouchPadHider.initialize();
 		mainCam = initPsychCamera();
 		funnyCam = new FlxCamera();
 		funnyCam.bgColor.alpha = 0;
@@ -115,9 +200,8 @@ class OptionsState extends MusicBeatState
 
 		for (num => option in options)
 		{
-			var optionText:VSliceBoldText = new VSliceBoldText(0, 0, Language.getPhrase('options_$option', option));
-			optionText.screenCenter(X);
-			optionText.x -= MobileScaleMode.gameCutoutSize.x / 2;
+			var optionText:VSliceBoldText = new VSliceBoldText(0, 0, itemLabel(option));
+			centerItem(optionText);
 			optionText.y = ROW_START_Y + LIST_SPACING * num;
 			optionText.cameras = [funnyCam];
 			grpOptions.add(optionText);
