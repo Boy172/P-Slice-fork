@@ -35,10 +35,14 @@ class TouchPointerPlugin extends FlxTypedSpriteGroup<TouchPointer>
 			return;
 		}
 
+		TouchPadHider.initialize();
+
 		pointerCamera = new FlxCamera();
 		pointerCamera.bgColor.alpha = 0;
 		instance = new TouchPointerPlugin();
 		instance.cameras = [pointerCamera];
+
+		enabled = isSavedEnabled();
 
 		FlxG.cameras.add(pointerCamera, false);
 		FlxG.plugins.drawOnTop = true;
@@ -154,6 +158,22 @@ class TouchPointerPlugin extends FlxTypedSpriteGroup<TouchPointer>
 			return true;
 		}
 		return false;
+	}
+
+	public static function isSavedEnabled():Bool
+	{
+		return FlxG.save == null || FlxG.save.data == null || FlxG.save.data.pslideHideTouchPointer != true;
+	}
+
+	public static function toggle():Void
+	{
+		enabled = !enabled;
+
+		if (FlxG.save != null && FlxG.save.data != null)
+		{
+			FlxG.save.data.pslideHideTouchPointer = !enabled;
+			FlxG.save.flush();
+		}
 	}
 
 	@:noCompletion
