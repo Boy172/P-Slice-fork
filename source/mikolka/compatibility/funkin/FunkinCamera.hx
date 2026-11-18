@@ -22,7 +22,7 @@ import flixel.graphics.tile.FlxDrawTrianglesItem;
 
 using funkin.graphics.framebuffer.BitmapDataUtil;
 
-@:access(openfl.display.DisplayObject) @:access(openfl.display.BitmapData) @:access(openfl.display3D.Context3D) @:access(openfl.display3D.textures.TextureBase) @:access(flixel.graphics.FlxGraphic) @:access(flixel.graphics.frames.FlxFrame) @:access(openfl.display.OpenGLRenderer) @:access(openfl.geom.ColorTransform)
+@:access(openfl.display.Shader) @:access(openfl.display.DisplayObject) @:access(openfl.display.BitmapData) @:access(openfl.display3D.Context3D) @:access(openfl.display3D.textures.TextureBase) @:access(flixel.graphics.FlxGraphic) @:access(flixel.graphics.frames.FlxFrame) @:access(openfl.display.OpenGLRenderer) @:access(openfl.geom.ColorTransform)
 class FunkinCamera extends PsychCamera
 {
     public static var hasKhronosExtension(get, never):Bool;
@@ -64,6 +64,36 @@ class FunkinCamera extends PsychCamera
   var _cameraTexture:FixedBitmapData;
   var _cameraMatrix:FlxMatrix;
 
+  static var logCount:Int = 0;
+  static var shaderPathCalls:Int = 0;
+
+  static function dbg(msg:String):Void
+  {
+    if (logCount > 150) return;
+    logCount++;
+    try
+    {
+      var dir:String = haxe.io.Path.addTrailingSlash(mobile.backend.StorageUtil.getStorageDirectory());
+      var out = sys.io.File.append(dir + 'funkincamera_log.txt', false);
+      out.writeString(msg + '\n');
+      out.close();
+    }
+    catch (e:Dynamic) {}
+  }
+
+  static function pixelInfo(bmp:BitmapData, x:Int, y:Int):String
+  {
+    if (bmp == null) return 'null';
+    try
+    {
+      return 'size=' + bmp.width + 'x' + bmp.height + ' readable=' + bmp.readable + ' imageNull=' + (bmp.image == null) + ' px=' + StringTools.hex(bmp.getPixel32(x, y), 8);
+    }
+    catch (e:Dynamic)
+    {
+      return 'err=' + Std.string(e);
+    }
+  }
+
   public function new(id:String = 'unknown', x:Float = 0, y:Float = 0, width:Int = 0, height:Int = 0, zoom:Float = 0)
   {
     super(x, y, width, height, zoom);
@@ -83,6 +113,7 @@ class FunkinCamera extends PsychCamera
     if (_blendShader != null) return;
 
     _blendShader = new RuntimeCustomBlendShader();
+    dbg('resources created cam=' + id + ' ' + this.width + 'x' + this.height + ' | ' + _blendShader.debugInfo());
 
     _backgroundRenderTexture = new RenderTexture(this.width, this.height);
     _blendRenderTexture = new RenderTexture(this.width, this.height);
@@ -99,6 +130,12 @@ class FunkinCamera extends PsychCamera
     if (shouldUseShader)
     {
       ensureBlendResources();
+
+      shaderPathCalls++;
+      var blendId:Int = cast blend;
+      var verbose:Bool = shaderPathCalls <= 6 || shaderPathCalls % 600 == 0;
+      if (verbose) dbg('[' + shaderPathCalls + '] shader path cam=' + id + ' blend=' + blendId + ' frameNull=' + (frame == null) + ' pixelsNull=' + (pixels == null)
+        + ' crossCam=' + crossCameraBlending + ' zoom=' + zoom + ' scale=' + scaleX + ' camSize=' + this.width + 'x' + this.height);
 
       if (crossCameraBlending)
       {
@@ -143,6 +180,8 @@ class FunkinCamera extends PsychCamera
         camera.drawPixels(frame, pixels, frameMatrix, transform, null, smoothing, shader);
       });
       _blendRenderTexture.render();
+      if (verbose) dbg('  blendTex graphicNull=' + (_blendRenderTexture.graphic == null) + ' bitmap ' + (_blendRenderTexture.graphic == null ? 'n/a' : pixelInfo(_blendRenderTexture.graphic.bitmap, Std.int(this.width / 2), Std.int(this.height / 2))));
+      if (verbose) dbg('  cameraTex ' + pixelInfo(_cameraTexture, Std.int(this.width / 2), Std.int(this.height / 2)));
 
       _blendShader.sourceSwag = _blendRenderTexture.graphic.bitmap;
       _blendShader.backgroundSwag = _cameraTexture;
@@ -163,6 +202,8 @@ class FunkinCamera extends PsychCamera
       });
 
       _backgroundRenderTexture.render();
+      if (verbose) dbg('  bgTex graphicNull=' + (_backgroundRenderTexture.graphic == null) + ' bitmap ' + (_backgroundRenderTexture.graphic == null ? 'n/a' : pixelInfo(_backgroundRenderTexture.graphic.bitmap, Std.int(this.width / 2), Std.int(this.height / 2)))
+        + ' programNull=' + (_blendShader.program == null) + ' | ' + _blendShader.debugInfo());
 
       _cameraMatrix.identity();
       _cameraMatrix.scale(1 / (this.scaleX * clampedScale), 1 / (this.scaleY * clampedScale));
