@@ -10,6 +10,12 @@ import openfl.display.ShaderParameter;
 
 class RuntimePostEffectShader extends FlxRuntimeShader
 {
+  public static var compileFailed:Bool = false;
+
+  static final EXTRA_FRAGMENT_HEADER:String = 'varying vec2 screenCoord;\nuniform vec2 uScreenResolution;\nuniform vec4 uCameraBounds;\nuniform vec4 uFrameBounds;\n';
+
+  static final EXTRA_VERTEX_BODY:String = '\n  screenCoord = vec2(openfl_TextureCoord.x > 0.0 ? 1.0 : 0.0, openfl_TextureCoord.y > 0.0 ? 1.0 : 0.0);\n';
+
   @:glVertexHeader('
 		varying vec2 screenCoord;
 	', true) @:glVertexBody('
@@ -82,6 +88,20 @@ class RuntimePostEffectShader extends FlxRuntimeShader
   public function new(fragmentSource:String = null)
   {
     super(fragmentSource, null);
+    ensureHeaders();
+  }
+
+  function ensureHeaders():Void
+  {
+    var fragment:String = glFragmentSource;
+    if (fragment != null && fragment.indexOf('varying vec2 screenCoord') == -1) glFragmentSource = EXTRA_FRAGMENT_HEADER + fragment;
+
+    var vertex:String = glVertexSource;
+    if (vertex != null && vertex.indexOf('screenCoord') == -1)
+    {
+      var end:Int = vertex.lastIndexOf('}');
+      if (end != -1) glVertexSource = 'varying vec2 screenCoord;\n' + vertex.substr(0, end) + EXTRA_VERTEX_BODY + vertex.substr(end);
+    }
   }
 
   function setUniform(name:String, value:Array<Float>):Void
@@ -106,10 +126,12 @@ class RuntimePostEffectShader extends FlxRuntimeShader
     try
     {
       final res = super.__createGLProgram(vertexSource, fragmentSource);
+      if (res == null) compileFailed = true;
       return res;
     }
     catch (error)
     {
+      compileFailed = true;
       Log.warn(error); // prevent the app from dying immediately
       return null;
     }
