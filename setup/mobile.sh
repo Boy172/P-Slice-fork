@@ -7,7 +7,7 @@ haxelib git flixel https://github.com/Psych-Slice/p-slice-1.0-flixel.git 9b1192a
 haxelib git grig.audio https://gitlab.com/haxe-grig/grig.audio.git cbf91e2180fd2e374924fe74844086aab7891666 --quiet --skip-dependencies
 haxelib install tink_core 1.26.0
 haxelib git flxanimate https://github.com/Psych-Slice/FlxAnimate.git 82a720663f9ed6328d91a727c2b17501d91e3b11 --quiet --skip-dependencies
-haxelib git flixel-animate https://github.com/MaybeMaru/flixel-animate.git --quiet --skip-dependencies
+haxelib git flixel-animate https://github.com/MaybeMaru/flixel-animate.git c5e3393c70b71a191f20fa902114cea92042e486 --quiet --skip-dependencies
 haxelib git funkin.vis https://github.com/FunkinCrew/funkVis 22b1ce089dd924f15cdc4632397ef3504d464e90 --quiet --skip-dependencies
 haxelib git hxcpp https://github.com/Psych-Slice/hxcpp.git 65b851f749a10c1df34f2ef55836bdec67ee81c2 --quiet --skip-dependencies
 
