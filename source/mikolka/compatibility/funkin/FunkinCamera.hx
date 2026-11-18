@@ -86,7 +86,9 @@ class FunkinCamera extends PsychCamera
     if (bmp == null) return 'null';
     try
     {
-      return 'size=' + bmp.width + 'x' + bmp.height + ' readable=' + bmp.readable + ' imageNull=' + (bmp.image == null) + ' px=' + StringTools.hex(bmp.getPixel32(x, y), 8);
+      var px:Int = bmp.getPixel32(x, y);
+      return 'size=' + bmp.width + 'x' + bmp.height + ' readable=' + bmp.readable + ' imageNull=' + (bmp.image == null) + ' px(a,r,g,b)=' + ((px >>> 24) & 0xFF) + ','
+        + ((px >>> 16) & 0xFF) + ',' + ((px >>> 8) & 0xFF) + ',' + (px & 0xFF);
     }
     catch (e:Dynamic)
     {
