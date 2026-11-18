@@ -11,8 +11,8 @@ haxelib git flixel-animate https://github.com/MaybeMaru/flixel-animate.git --qui
 haxelib git funkin.vis https://github.com/FunkinCrew/funkVis 22b1ce089dd924f15cdc4632397ef3504d464e90 --quiet --skip-dependencies
 haxelib git hxcpp https://github.com/Psych-Slice/hxcpp.git 65b851f749a10c1df34f2ef55836bdec67ee81c2 --quiet --skip-dependencies
 
-haxelib git openfl https://github.com/FunkinCrew/openfl.git 74a51908a116d6df74be1083e219abb9fa057636 --quiet --skip-dependencies
-haxelib git lime https://github.com/FunkinCrew/lime.git 268dacfb2609766e14bef9ea5b669e91501852d2 --quiet
+haxelib git openfl https://github.com/FunkinCrew/openfl.git c4fa1dcfc384f07bb537e08cae671f9507fe49e6 --quiet --skip-dependencies
+haxelib git lime https://github.com/Psych-Slice/lime-pslice.git c6ed780a33cfc07d3fd2fd7325c1428236bc4b61 --quiet
 
 haxelib install flixel-addons 3.3.2 --quiet --skip-dependencies
 haxelib install flixel-tools 1.5.1 --quiet --skip-dependencies
