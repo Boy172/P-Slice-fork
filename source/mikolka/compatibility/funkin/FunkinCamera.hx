@@ -12,6 +12,7 @@ import flixel.math.FlxRect;
 import flixel.system.FlxAssets.FlxShader;
 import funkin.graphics.framebuffer.FixedBitmapData;
 import funkin.graphics.shaders.RuntimeCustomBlendShader;
+import funkin.graphics.shaders.RuntimePostEffectShader;
 import openfl.display.OpenGLRenderer;
 import openfl.Lib;
 import openfl.display.BitmapData;
@@ -92,7 +93,8 @@ class FunkinCamera extends PsychCamera
   override function drawPixels(?frame:FlxFrame, ?pixels:BitmapData, matrix:FlxMatrix, ?transform:ColorTransform, ?blend:BlendMode, ?smoothing:Bool = false,
       ?shader:FlxShader):Void
   {
-    var shouldUseShader:Bool = (!hasKhronosExtension && KHR_BLEND_MODES.contains(blend)) || SHADER_REQUIRED_BLEND_MODES.contains(blend);
+    var shouldUseShader:Bool = ((!hasKhronosExtension && KHR_BLEND_MODES.contains(blend)) || SHADER_REQUIRED_BLEND_MODES.contains(blend))
+      && !RuntimePostEffectShader.compileFailed;
 
     if (shouldUseShader)
     {
