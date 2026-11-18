@@ -6,6 +6,7 @@ import flixel.graphics.frames.FlxFrame;
 import flixel.addons.display.FlxRuntimeShader;
 import lime.graphics.opengl.GLProgram;
 import lime.utils.Log;
+import openfl.display.ShaderParameter;
 
 class RuntimePostEffectShader extends FlxRuntimeShader
 {
@@ -81,20 +82,23 @@ class RuntimePostEffectShader extends FlxRuntimeShader
   public function new(fragmentSource:String = null)
   {
     super(fragmentSource, null);
-    uScreenResolution.value = [FlxG.width, FlxG.height];
-    uCameraBounds.value = [0, 0, FlxG.width, FlxG.height];
-    uFrameBounds.value = [0, 0, FlxG.width, FlxG.height];
+  }
+
+  function setUniform(name:String, value:Array<Float>):Void
+  {
+    var parameter:ShaderParameter<Float> = Reflect.field(data, name);
+    if (parameter != null) parameter.value = value;
   }
 
   public function updateViewInfo(screenWidth:Float, screenHeight:Float, camera:FlxCamera):Void
   {
-    uScreenResolution.value = [screenWidth, screenHeight];
-    uCameraBounds.value = [camera.viewLeft, camera.viewTop, camera.viewRight, camera.viewBottom];
+    setUniform('uScreenResolution', [screenWidth, screenHeight]);
+    setUniform('uCameraBounds', [camera.viewLeft, camera.viewTop, camera.viewRight, camera.viewBottom]);
   }
 
   public function updateFrameInfo(frame:FlxFrame)
   {
-    uFrameBounds.value = [frame.uv.left, frame.uv.top, frame.uv.right, frame.uv.bottom];
+    setUniform('uFrameBounds', [frame.uv.left, frame.uv.top, frame.uv.right, frame.uv.bottom]);
   }
 
   override function __createGLProgram(vertexSource:String, fragmentSource:String):GLProgram
