@@ -58,7 +58,7 @@ class NativeFileSystem
 		#if OPENFL_LOOKUP
 		if (#if NATIVE_LOOKUP !isModded && #end openFlAssets.contains(path))
 		{
-			var result = backend.OptimizedBitmapData.fromOpenFlAssets(path);
+			var result = OpenFlAssets.getBitmapData(path);
 			return result;
 		}
 		#end
@@ -77,7 +77,7 @@ class NativeFileSystem
 				return BitmapData.fromTexture(texture,true);
 			}
 			else{#end
-				var result = backend.OptimizedBitmapData.fromFile(sys_path);
+				var result = BitmapData.fromFile(sys_path);
 				return result;
 			#if ATSC_SUPPORT}#end
 		}
