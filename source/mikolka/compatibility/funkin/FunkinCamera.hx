@@ -26,14 +26,20 @@ class FunkinCamera extends PsychCamera
 {
     public static var hasKhronosExtension(get, never):Bool;
 
-  static inline function get_hasKhronosExtension():Bool
+  static function get_hasKhronosExtension():Bool
   {
     #if FORCE_BLEND_SHADER
     return false;
     #else
-    @:privateAccess
-    return OpenGLRenderer.__complexBlendsSupported ?? false;
+    return Reflect.field(OpenGLRenderer, '__complexBlendsSupported') == true;
     #end
+  }
+
+  static var coherentBlendsSupported(get, never):Bool;
+
+  static function get_coherentBlendsSupported():Bool
+  {
+    return Reflect.field(OpenGLRenderer, '__coherentBlendsSupported') == true;
   }
 
     static final KHR_BLEND_MODES:Array<BlendMode> = [
@@ -41,15 +47,7 @@ class FunkinCamera extends PsychCamera
     HARDLIGHT,
     #if !desktop LIGHTEN, #end
     OVERLAY,
-    DIFFERENCE,
-    COLORDODGE,
-    COLORBURN,
-    SOFTLIGHT,
-    EXCLUSION,
-    HUE,
-    SATURATION,
-    COLOR,
-    LUMINOSITY
+    DIFFERENCE
   ];
 
     static final SHADER_REQUIRED_BLEND_MODES:Array<BlendMode> = [INVERT];
@@ -171,7 +169,7 @@ class FunkinCamera extends PsychCamera
   override function startQuadBatch(graphic:FlxGraphic, colored:Bool, hasColorOffsets:Bool = false, ?blend:BlendMode, smooth:Bool = false,
       ?shader:FlxShader):FlxDrawQuadsItem
   {
-    if (hasKhronosExtension && !(OpenGLRenderer.__coherentBlendsSupported ?? false) && KHR_BLEND_MODES.contains(blend))
+    if (hasKhronosExtension && !coherentBlendsSupported && KHR_BLEND_MODES.contains(blend))
     {
       var itemToReturn = null;
 
@@ -221,7 +219,7 @@ class FunkinCamera extends PsychCamera
       ?shader:FlxShader):FlxDrawTrianglesItem
   {
     if (hasKhronosExtension
-      && !(OpenGLRenderer.__coherentBlendsSupported ?? false)
+      && !coherentBlendsSupported
       && KHR_BLEND_MODES.contains(blend)) return getNewDrawTrianglesItem(graphic, smoothing, isColored, blend, hasColorOffsets, shader);
 
     return super.startTrianglesBatch(graphic, smoothing, isColored, blend, hasColorOffsets, shader);
