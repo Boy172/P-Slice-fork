@@ -11,6 +11,7 @@ import openfl.display.ShaderParameter;
 class RuntimePostEffectShader extends FlxRuntimeShader
 {
   public static var compileFailed:Bool = false;
+  public static var lastError:String = 'none';
 
   static final EXTRA_FRAGMENT_HEADER:String = 'varying vec2 screenCoord;\nuniform vec2 uScreenResolution;\nuniform vec4 uCameraBounds;\nuniform vec4 uFrameBounds;\n';
 
@@ -91,6 +92,15 @@ class RuntimePostEffectShader extends FlxRuntimeShader
     ensureHeaders();
   }
 
+  public function debugInfo():String
+  {
+    var f:String = glFragmentSource == null ? '' : glFragmentSource;
+    var v:String = glVertexSource == null ? '' : glVertexSource;
+    return 'fragLen=' + f.length + ' fragScreenCoord=' + (f.indexOf('screenCoord') != -1) + ' fragPragma=' + (f.indexOf('#pragma header') != -1)
+      + ' fragFlixelTex=' + (f.indexOf('flixel_texture2D') != -1) + ' vertLen=' + v.length + ' vertScreenCoord=' + (v.indexOf('screenCoord') != -1)
+      + ' vertPragma=' + (v.indexOf('#pragma') != -1) + ' compileFailed=' + compileFailed + ' lastError=' + lastError;
+  }
+
   function ensureHeaders():Void
   {
     var fragment:String = glFragmentSource;
@@ -132,6 +142,7 @@ class RuntimePostEffectShader extends FlxRuntimeShader
     catch (error)
     {
       compileFailed = true;
+      lastError = Std.string(error);
       Log.warn(error); // prevent the app from dying immediately
       return null;
     }
