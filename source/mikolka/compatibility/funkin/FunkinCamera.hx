@@ -72,15 +72,21 @@ class FunkinCamera extends PsychCamera
     _backgroundFrame = new FlxFrame(new FlxGraphic('', null));
     _backgroundFrame.frame = new FlxRect();
 
+    _cameraMatrix = new FlxMatrix();
+
+    crossCameraBlending = false;
+  }
+
+  function ensureBlendResources():Void
+  {
+    if (_blendShader != null) return;
+
     _blendShader = new RuntimeCustomBlendShader();
 
     _backgroundRenderTexture = new RenderTexture(this.width, this.height);
     _blendRenderTexture = new RenderTexture(this.width, this.height);
 
-    _cameraMatrix = new FlxMatrix();
     _cameraTexture = FixedBitmapData.create(this.width, this.height);
-
-    crossCameraBlending = false;
   }
 
   override function drawPixels(?frame:FlxFrame, ?pixels:BitmapData, matrix:FlxMatrix, ?transform:ColorTransform, ?blend:BlendMode, ?smoothing:Bool = false,
@@ -90,6 +96,8 @@ class FunkinCamera extends PsychCamera
 
     if (shouldUseShader)
     {
+      ensureBlendResources();
+
       if (crossCameraBlending)
       {
         var camerasUnderneath:Array<FlxCamera> = FlxG.cameras.list.copy();
@@ -229,9 +237,8 @@ class FunkinCamera extends PsychCamera
   {
     super.destroy();
 
-    _blendRenderTexture.destroy();
-    _backgroundRenderTexture.destroy();
-
-    _cameraTexture.dispose();
+    if (_blendRenderTexture != null) _blendRenderTexture.destroy();
+    if (_backgroundRenderTexture != null) _backgroundRenderTexture.destroy();
+    if (_cameraTexture != null) _cameraTexture.dispose();
   }
 }
