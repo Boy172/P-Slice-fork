@@ -23,6 +23,7 @@
 
 	<app preloader="mikolka.vslice.FunkinPreloader" />
 	<set name="SWF_VERSION" value="11.8" />
+	<define name="lime-funkin" />
 
 	<define name="MODS_ALLOWED" if="desktop || mobile" />
 
