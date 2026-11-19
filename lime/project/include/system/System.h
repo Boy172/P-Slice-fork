@@ -1,0 +1,72 @@
+#pragma once
+
+#include <hx/CFFIPrime.h>
+#include <stdio.h>
+#include <string>
+
+namespace lime
+{
+
+	enum SystemDirectory
+	{
+
+		APPLICATION,
+		APPLICATION_STORAGE,
+		DESKTOP,
+		DOCUMENTS,
+		USER
+
+	};
+
+	enum SystemTheme
+	{
+
+		UNKNOWN,
+		LIGHT,
+		DARK
+
+	};
+
+	class System
+	{
+	  public:
+		static void GCEnterBlocking();
+		static void GCExitBlocking();
+
+		static void GCTryEnterBlocking();
+		static void GCTryExitBlocking();
+
+		static char *GetDeviceModel();
+		static char *GetDeviceVendor();
+		static char *GetPlatformLabel();
+		static char *GetPlatformName();
+		static char *GetPlatformVersion();
+
+		static char *GetDirectory(SystemDirectory type, const char *company, const char *title);
+
+		static int GetNumDisplays();
+		static void *GetDisplay(int id);
+
+		static int GetFirstGyroscopeSensorId();
+		static int GetFirstAccelerometerSensorId();
+
+		static double GetTimer();
+
+		static SystemTheme GetTheme();
+
+		static void OpenFile(const char *path);
+		static void OpenURL(const char *url, const char *target);
+
+		static const char *GetHint(const char *key);
+		static void SetHint(const char *key, const char *value);
+
+		static bool GetAllowScreenTimeout();
+		static bool SetAllowScreenTimeout(bool allow);
+
+#ifdef HX_WINDOWS
+		static int GetWindowsConsoleMode(int handleType);
+		static bool SetWindowsConsoleMode(int handleType, int mode);
+#endif
+	};
+
+} // namespace lime

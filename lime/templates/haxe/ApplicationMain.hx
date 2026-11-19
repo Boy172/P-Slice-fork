@@ -1,0 +1,135 @@
+package;
+
+import ::APP_MAIN::;
+
+@:dox(hide)
+@:access(lime.app.Application)
+@:access(lime.system.System)
+#if (static_link || ios)
+@:cppFileCode("\nextern \"C\" int lime_register_prims ();\n::foreach ndlls::::if (registerStatics)::extern \"C\" int ::nameSafe::_register_prims ();::end::::end::")
+#end
+class ApplicationMain
+{
+	public static function main():Void
+	{
+		#if (static_link || ios)
+		untyped __cpp__("lime_register_prims ()");
+		::foreach ndlls::::if (registerStatics)::untyped __cpp__("::nameSafe::_register_prims ()");::end::::end::
+		#end
+
+		lime.system.System.__registerEntryPoint("::APP_FILE::", create);
+
+		#if !html5
+		create(null);
+		#end
+	}
+
+	public static function create(config:Dynamic):Void
+	{
+		::if (WIN_ORIENTATION != "auto")::
+		lime.system.System.setHint("ORIENTATIONS", ::if (WIN_ORIENTATION == "portrait")::"Portrait PortraitUpsideDown"::else::"LandscapeLeft LandscapeRight"::end::);
+		::end::
+
+		final appMeta:Map<String, String> = [];
+
+		appMeta.set("build", "::meta.buildNumber::");
+		appMeta.set("company", "::meta.company::");
+		appMeta.set("file", "::APP_FILE::");
+		appMeta.set("name", "::meta.title::");
+		appMeta.set("packageName", "::meta.packageName::");
+		appMeta.set("version", "::meta.version::");
+
+		var app = new ::APP_MAIN::(appMeta);
+
+		::foreach windows::
+		var attributes:lime.ui.WindowAttributes =
+			{
+				allowHighDPI: ::allowHighDPI::,
+				alwaysOnTop: ::alwaysOnTop::,
+				transparent: ::transparent::,
+				borderless: ::borderless::,
+				element: null,
+				frameRate: ::fps::,
+				#if !web
+				fullscreen: ::fullscreen::,
+				#end
+				height: ::height::,
+				hidden: ::hidden::,
+				maximized: ::maximized::,
+				minimized: ::minimized::,
+				parameters: ::parameters::,
+				resizable: ::resizable::,
+				title: "::title::",
+				width: ::width::,
+				x: ::x::,
+				y: ::y::,
+			};
+
+		attributes.context =
+			{
+				antialiasing: ::antialiasing::,
+				background: ::background::,
+				colorDepth: ::colorDepth::,
+				depth: ::depthBuffer::,
+				hardware: ::hardware::,
+				stencil: ::stencilBuffer::,
+				type: null,
+				vsync: ::vsync::
+			};
+
+		if (app.window == null)
+		{
+			if (config != null)
+			{
+				for (field in Reflect.fields(config))
+				{
+					if (Reflect.hasField(attributes, field))
+					{
+						Reflect.setField(attributes, field, Reflect.field(config, field));
+					}
+					else if (Reflect.hasField(attributes.context, field))
+					{
+						Reflect.setField(attributes.context, field, Reflect.field(config, field));
+					}
+				}
+			}
+		}
+
+		app.createWindow(attributes);
+		::end::
+
+		#if !disable_preloader_assets
+		ManifestResources.init(config);
+
+		for (library in ManifestResources.preloadLibraries)
+		{
+			app.preloader.addLibrary(library);
+		}
+
+		for (name in ManifestResources.preloadLibraryNames)
+		{
+			app.preloader.addLibraryName(name);
+		}
+		#end
+
+		app.preloader.load();
+
+		start(app);
+	}
+
+	public static function start(app:lime.app.Application = null):Void
+	{
+		var result = app.exec();
+
+		#if (sys && !ios && !nodejs)
+		lime.system.System.exit(result);
+		#end
+	}
+
+	#if !macro
+	@:noCompletion @:dox(hide) public static function __init__()
+	{
+		var init = lime.app.Application;
+	}
+	#end
+}

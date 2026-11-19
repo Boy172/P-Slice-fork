@@ -1,0 +1,76 @@
+package lime.utils;
+
+import haxe.io.Bytes;
+import haxe.io.BytesInput;
+import haxe.io.Input;
+import haxe.zip.Reader;
+
+import lime.app.Future;
+import lime.utils.Bytes as LimeBytes;
+
+#if sys
+import sys.io.File;
+#end
+
+class AssetBundle
+{
+	public var data:Map<String, Bytes>;
+	public var paths:Array<String>;
+
+	public function new()
+	{
+		// compressed = new Map();
+		data = new Map();
+		paths = new Array();
+	}
+
+	public static function fromBytes(bytes:Bytes):AssetBundle
+	{
+		return __extractBundle(new BytesInput(bytes));
+	}
+
+	public static function fromFile(path:String):AssetBundle
+	{
+		var bytes = LimeBytes.fromFile(path);
+
+		if (bytes == null)
+		{
+			return null;
+		}
+
+		return __extractBundle(new BytesInput(bytes));
+	}
+
+	public static function loadFromBytes(bytes:Bytes):Future<AssetBundle>
+	{
+		return Future.withValue(fromBytes(bytes));
+	}
+
+	public static function loadFromFile(path:String):Future<AssetBundle>
+	{
+		return LimeBytes.loadFromFile(path).then(loadFromBytes);
+	}
+
+	@:noCompletion private static function __extractBundle(input:Input):AssetBundle
+	{
+		var entries = Reader.readZip(input);
+
+		var bundle = new AssetBundle();
+
+		for (entry in entries)
+		{
+			if (entry.compressed)
+			{
+				var bytes:LimeBytes = entry.data;
+				bundle.data.set(entry.fileName, bytes.decompress(DEFLATE));
+			}
+			else
+			{
+				bundle.data.set(entry.fileName, entry.data);
+			}
+			bundle.paths.push(entry.fileName);
+		}
+
+		return bundle;
+	}
+}

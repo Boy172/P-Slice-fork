@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension>
+
+	<set name="lime" />
+
+	<log error="Lime ${lime} is not compatible with Haxe ${haxe} (version 4.2.5 or higher is required)" if="${haxe &lt; 4.2.5}" />
+
+	<define name="native" if="cpp" />
+
+	<define name="lime-funkin" />
+	<define name="lime-cairo" if="native" />
+	<define name="lime-canvas" if="html5" />
+	<define name="lime-cffi" if="native" />
+	<define name="lime-harfbuzz" if="native" />
+	<define name="lime-howlerjs" if="html5" />
+	<define name="lime-html5" if="html5" />
+	<define name="lime-native" if="native" />
+	<define name="lime-openal" if="windows || linux || mac || android || ios" />
+	<define name="lime-opengl" if="desktop" unless="html5" />
+	<define name="lime-opengles" if="mobile" />
+	<define name="lime-webgl" if="html5" />
+
+	<haxedef name="no-compilation" />
+
+	<templatePath name="templates" />
+
+	<sample path="samples" unless="openfl" />
+
+	<section if="hxp" unless="lime-tools">
+
+		<target name="android" path="tools/platforms/AndroidPlatform.hx" />
+		<target name="html5" path="tools/platforms/HTML5Platform.hx" />
+		<target name="ios" path="tools/platforms/IOSPlatform.hx" />
+		<target name="linux" path="tools/platforms/LinuxPlatform.hx" />
+		<target name="mac" path="tools/platforms/MacPlatform.hx" />
+		<target name="windows" path="tools/platforms/WindowsPlatform.hx" />
+
+	</section>
+
+	<section unless="display">
+
+		<section unless="force-synchronous || force_synchronous">
+
+			<haxedef name="lime-threads" if="native || html5" />
+			<haxedef name="lime-threads-deque" if="native" />
+
+		</section>
+
+		<ndll name="lime" if="native" unless="static_link" />
+
+		<section if="android">
+
+			<dependency name="extension-api" path="dependencies/extension-api" />
+
+			<config:android>
+				<manifest>
+					<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+					<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+					<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+					<uses-permission android:name="android.permission.INTERNET" />
+					<uses-permission android:name="android.permission.VIBRATE" />
+				</manifest>
+			</config:android>
+
+		</section>
+
+		<section if="html5">
+
+			<dependency path="dependencies/howler.js" embed="true" />
+			<dependency path="dependencies/pako.min.js" embed="true" allow-web-workers="true" />
+			<dependency path="dependencies/lzma_worker-min.js" embed="true" />
+			<dependency path="dependencies/FileSaver.min.js" embed="true" />
+			<dependency path="dependencies/webgl-debug.js" if="webgl-debug" embed="true" />
+			<dependency path="dependencies/stats.min.js" if="stats" embed="true" />
+
+		</section>
+
+		<section if="ios">
+
+			<dependency name="AudioToolbox.framework" />
+			<dependency name="AVFoundation.framework" />
+			<dependency name="CoreAudio.framework" />
+			<dependency name="CoreBluetooth.framework" />
+			<dependency name="CoreGraphics.framework" />
+			<dependency name="CoreHaptics.framework" />
+			<dependency name="CoreMedia.framework" />
+			<dependency name="CoreMotion.framework" />
+			<dependency name="CoreText.framework" />
+			<dependency name="CoreVideo.framework" />
+			<dependency name="Foundation.framework" />
+			<dependency name="GameController.framework" />
+			<dependency name="MediaPlayer.framework" />
+			<dependency name="Metal.framework" />
+			<dependency name="OpenGLES.framework" />
+			<dependency name="QuartzCore.framework" />
+			<dependency name="Security.framework" />
+			<dependency name="UIKit.framework" />
+
+			<config:ios class="Main.mm" />
+
+			<define name="HXCPP_IOS_MIN_VERSION" value="16.0" />
+
+		</section>
+
+		<section if="mac">
+
+			<define name="MACOSX_DEPLOYMENT_TARGET" value="11" />
+			<setenv name="MACOSX_DEPLOYMENT_TARGET" value="${MACOSX_DEPLOYMENT_TARGET}" />
+
+		</section>
+
+	</section>
+
+	<include haxelib="lime-samples" if="create" />
+
+	<section if="rebuild">
+
+		<config:project>
+			<rebuild fulldebug="true" />
+		</config:project>
+
+	</section>
+
+</extension>

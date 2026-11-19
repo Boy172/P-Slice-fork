@@ -1,0 +1,8 @@
+-main CommandLineTools
+-neko tools.n
+-D lime-cffi
+-D lime
+-cp platforms
+-cp ../src
+-lib lime
+-lib hxp
