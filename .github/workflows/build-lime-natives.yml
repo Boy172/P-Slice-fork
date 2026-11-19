@@ -18,7 +18,7 @@ env:
 jobs:
   linux:
     name: Linux64
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
@@ -114,6 +114,15 @@ jobs:
         shell: pwsh
         run: '"HXCPP_COMPILE_CACHE=$env:USERPROFILE\.hxcpp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append'
 
+      - name: Forzar C++20 en MSVC
+        shell: pwsh
+        run: |
+          $f = "$env:USERPROFILE\haxelib\hxcpp\git\toolchain\msvc-toolchain.xml"
+          $t = Get-Content $f -Raw
+          $t = [regex]::Replace($t, '<flag value="/std:c\+\+17"[^>]*/>', '<flag value="/std:c++20"/>')
+          Set-Content -Path $f -Value $t -NoNewline
+          Select-String -Path $f -Pattern 'std:c'
+
       - name: Enlazar Lime del repositorio
         shell: pwsh
         run: haxelib dev lime "$env:GITHUB_WORKSPACE\lime"
@@ -194,13 +203,14 @@ jobs:
   commit:
     name: Subir ndll a la rama
     needs: [linux, windows, android]
-    if: ${{ inputs.commit_result }}
+    if: ${{ always() && inputs.commit_result && needs.windows.result == 'success' && needs.android.result == 'success' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
       - name: Bajar Linux64
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: Linux64-NDLL
