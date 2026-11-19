@@ -22,17 +22,18 @@ import flixel.graphics.tile.FlxDrawTrianglesItem;
 
 using funkin.graphics.framebuffer.BitmapDataUtil;
 
-@:access(openfl.display.Shader) @:access(openfl.display.DisplayObject) @:access(openfl.display.BitmapData) @:access(openfl.display3D.Context3D) @:access(openfl.display3D.textures.TextureBase) @:access(flixel.graphics.FlxGraphic) @:access(flixel.graphics.frames.FlxFrame) @:access(openfl.display.OpenGLRenderer) @:access(openfl.geom.ColorTransform)
+@:access(openfl.display.DisplayObject) @:access(openfl.display.BitmapData) @:access(openfl.display3D.Context3D) @:access(openfl.display3D.textures.TextureBase) @:access(flixel.graphics.FlxGraphic) @:access(flixel.graphics.frames.FlxFrame) @:access(openfl.display.OpenGLRenderer) @:access(openfl.geom.ColorTransform)
 class FunkinCamera extends PsychCamera
 {
     public static var hasKhronosExtension(get, never):Bool;
 
-  static function get_hasKhronosExtension():Bool
+  static inline function get_hasKhronosExtension():Bool
   {
     #if FORCE_BLEND_SHADER
     return false;
     #else
-    return Reflect.field(OpenGLRenderer, '__complexBlendsSupported') == true;
+    @:privateAccess
+    return OpenGLRenderer.__complexBlendsSupported ?? false;
     #end
   }
 
@@ -40,7 +41,8 @@ class FunkinCamera extends PsychCamera
 
   static function get_coherentBlendsSupported():Bool
   {
-    return Reflect.field(OpenGLRenderer, '__coherentBlendsSupported') == true;
+    @:privateAccess
+    return OpenGLRenderer.__coherentBlendsSupported ?? false;
   }
 
     static final KHR_BLEND_MODES:Array<BlendMode> = [
@@ -48,7 +50,15 @@ class FunkinCamera extends PsychCamera
     HARDLIGHT,
     #if !desktop LIGHTEN, #end
     OVERLAY,
-    DIFFERENCE
+    DIFFERENCE,
+    COLORDODGE,
+    COLORBURN,
+    SOFTLIGHT,
+    EXCLUSION,
+    HUE,
+    SATURATION,
+    COLOR,
+    LUMINOSITY
   ];
 
     static final SHADER_REQUIRED_BLEND_MODES:Array<BlendMode> = [INVERT];
@@ -63,57 +73,6 @@ class FunkinCamera extends PsychCamera
   var _backgroundRenderTexture:RenderTexture;
   var _cameraTexture:FixedBitmapData;
   var _cameraMatrix:FlxMatrix;
-
-  static var logCount:Int = 0;
-  static var debugMode:Int = -1;
-
-  static function readMode():Int
-  {
-    var mode:Int = 0;
-    try
-    {
-      var dir:String = haxe.io.Path.addTrailingSlash(mobile.backend.StorageUtil.getStorageDirectory());
-      var path:String = dir + 'funkincamera_mode.txt';
-      if (sys.FileSystem.exists(path))
-      {
-        var parsed:Null<Int> = Std.parseInt(sys.io.File.getContent(path));
-        if (parsed != null) mode = parsed;
-      }
-    }
-    catch (e:Dynamic) {}
-    dbg('=== run start, debug mode = ' + mode);
-    return mode;
-  }
-  static var shaderPathCalls:Int = 0;
-
-  static function dbg(msg:String):Void
-  {
-    if (logCount > 150) return;
-    logCount++;
-    try
-    {
-      var dir:String = haxe.io.Path.addTrailingSlash(mobile.backend.StorageUtil.getStorageDirectory());
-      var out = sys.io.File.append(dir + 'funkincamera_log.txt', false);
-      out.writeString(msg + '\n');
-      out.close();
-    }
-    catch (e:Dynamic) {}
-  }
-
-  static function pixelInfo(bmp:BitmapData, x:Int, y:Int):String
-  {
-    if (bmp == null) return 'null';
-    try
-    {
-      var px:Int = bmp.getPixel32(x, y);
-      return 'size=' + bmp.width + 'x' + bmp.height + ' readable=' + bmp.readable + ' imageNull=' + (bmp.image == null) + ' px(a,r,g,b)=' + ((px >>> 24) & 0xFF) + ','
-        + ((px >>> 16) & 0xFF) + ',' + ((px >>> 8) & 0xFF) + ',' + (px & 0xFF);
-    }
-    catch (e:Dynamic)
-    {
-      return 'err=' + Std.string(e);
-    }
-  }
 
   public function new(id:String = 'unknown', x:Float = 0, y:Float = 0, width:Int = 0, height:Int = 0, zoom:Float = 0)
   {
@@ -134,7 +93,6 @@ class FunkinCamera extends PsychCamera
     if (_blendShader != null) return;
 
     _blendShader = new RuntimeCustomBlendShader();
-    dbg('resources created cam=' + id + ' ' + this.width + 'x' + this.height + ' | ' + _blendShader.debugInfo());
 
     _backgroundRenderTexture = new RenderTexture(this.width, this.height);
     _blendRenderTexture = new RenderTexture(this.width, this.height);
@@ -145,20 +103,12 @@ class FunkinCamera extends PsychCamera
   override function drawPixels(?frame:FlxFrame, ?pixels:BitmapData, matrix:FlxMatrix, ?transform:ColorTransform, ?blend:BlendMode, ?smoothing:Bool = false,
       ?shader:FlxShader):Void
   {
-    if (debugMode == -1) debugMode = readMode();
-
-    var shouldUseShader:Bool = debugMode != 1 && ((!hasKhronosExtension && KHR_BLEND_MODES.contains(blend)) || SHADER_REQUIRED_BLEND_MODES.contains(blend))
+    var shouldUseShader:Bool = ((!hasKhronosExtension && KHR_BLEND_MODES.contains(blend)) || SHADER_REQUIRED_BLEND_MODES.contains(blend))
       && !RuntimePostEffectShader.compileFailed;
 
     if (shouldUseShader)
     {
       ensureBlendResources();
-
-      shaderPathCalls++;
-      var blendId:Int = cast blend;
-      var verbose:Bool = shaderPathCalls <= 6 || shaderPathCalls % 600 == 0;
-      if (verbose) dbg('[' + shaderPathCalls + '] shader path cam=' + id + ' blend=' + blendId + ' frameNull=' + (frame == null) + ' pixelsNull=' + (pixels == null)
-        + ' crossCam=' + crossCameraBlending + ' zoom=' + zoom + ' scale=' + scaleX + ' camSize=' + this.width + 'x' + this.height);
 
       if (crossCameraBlending)
       {
@@ -203,17 +153,14 @@ class FunkinCamera extends PsychCamera
         camera.drawPixels(frame, pixels, frameMatrix, transform, null, smoothing, shader);
       });
       _blendRenderTexture.render();
-      if (verbose) dbg('  blendTex graphicNull=' + (_blendRenderTexture.graphic == null) + ' bitmap ' + (_blendRenderTexture.graphic == null ? 'n/a' : pixelInfo(_blendRenderTexture.graphic.bitmap, Std.int(this.width / 2), Std.int(this.height / 2))));
-      if (verbose) dbg('  cameraTex ' + pixelInfo(_cameraTexture, Std.int(this.width / 2), Std.int(this.height / 2)));
 
       _blendShader.sourceSwag = _blendRenderTexture.graphic.bitmap;
       _blendShader.backgroundSwag = _cameraTexture;
 
       _blendShader.blendSwag = blend;
-      _blendShader.setInt('debugOut', debugMode >= 5 ? debugMode - 4 : 0);
       _blendShader.updateViewInfo(width, height, this);
 
-      _backgroundFrame.parent.bitmap = debugMode == 2 ? _cameraTexture : _blendRenderTexture.graphic.bitmap;
+      _backgroundFrame.parent.bitmap = _blendRenderTexture.graphic.bitmap;
 
       var clampedScale:Float = Math.max(1, Lib.current.stage.window.scale);
 
@@ -222,18 +169,16 @@ class FunkinCamera extends PsychCamera
       {
         camera.zoom = this.zoom;
         matrix.scale(clampedScale, clampedScale);
-        camera.drawPixels(_backgroundFrame, null, matrix, canvas.transform.colorTransform, null, false, debugMode == 0 || debugMode >= 5 ? _blendShader : null);
+        camera.drawPixels(_backgroundFrame, null, matrix, canvas.transform.colorTransform, null, false, _blendShader);
       });
 
       _backgroundRenderTexture.render();
-      if (verbose) dbg('  bgTex graphicNull=' + (_backgroundRenderTexture.graphic == null) + ' bitmap ' + (_backgroundRenderTexture.graphic == null ? 'n/a' : pixelInfo(_backgroundRenderTexture.graphic.bitmap, Std.int(this.width / 2), Std.int(this.height / 2)))
-        + ' programNull=' + (_blendShader.program == null) + ' | ' + _blendShader.debugInfo());
 
       _cameraMatrix.identity();
       _cameraMatrix.scale(1 / (this.scaleX * clampedScale), 1 / (this.scaleY * clampedScale));
       _cameraMatrix.translate(((width - width / this.scaleX) * 0.5), ((height - height / this.scaleY) * 0.5));
 
-      super.drawPixels(debugMode == 3 ? _blendRenderTexture.graphic.imageFrame.frame : _backgroundRenderTexture.graphic.imageFrame.frame, null, _cameraMatrix, null, null, smoothing, null);
+      super.drawPixels(_backgroundRenderTexture.graphic.imageFrame.frame, null, _cameraMatrix, null, null, smoothing, null);
     }
     else
     {
