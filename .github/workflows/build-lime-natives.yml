@@ -31,8 +31,10 @@ jobs:
           git -C "$RUNNER_TEMP/lime-src" submodule update --init --recursive --depth 1 || git -C "$RUNNER_TEMP/lime-src" submodule update --init --recursive
           mkdir -p lime/project/lib
           cp -r "$RUNNER_TEMP/lime-src/project/lib/." lime/project/lib/
-          grep -q 'value="-std=c++20"' lime/project/lib/openal-files.xml || sed -i 's#\(<compilerflag value="-Wno-switch" if="android" />\)#\1\n        <compilerflag value="-std=c++20" if="android || linux" />#' lime/project/lib/openal-files.xml
-          grep -n 'std=c++20' lime/project/lib/openal-files.xml
+          grep -q 'value="-std=c++20"' lime/project/lib/openal-files.xml || sed -i 's#\(<compilerflag value="-Wno-switch" if="android" />\)#\1\n        <compilerflag value="-std=c++20" if="android || linux" />\n        <compilerflag value="/std:c++20" if="windows" />#' lime/project/lib/openal-files.xml
+          grep -n 'c++20' lime/project/lib/openal-files.xml
+          grep -q 'HXCPP_NO_CPP11' lime/project/Build.xml || sed -i 's#\(<set name="HXCPP_CPP20" value="1" />\)#\1\n    <set name="HXCPP_NO_CPP11" value="1" />#' lime/project/Build.xml
+          grep -n 'HXCPP_NO_CPP11\|HXCPP_CPP20' lime/project/Build.xml
 
       - name: Instalar paquetes del sistema
         run: |
@@ -59,7 +61,7 @@ jobs:
         run: haxelib dev lime "$GITHUB_WORKSPACE/lime"
 
       - name: Compilar nativos de Linux64
-        run: haxelib run lime rebuild linux -64 -release -nocolor -nocffi
+        run: haxelib run lime rebuild linux -64 -release -nocolor -nocffi -DHXCPP_NO_CPP11
 
       - name: Subir resultado
         uses: actions/upload-artifact@v4
@@ -89,8 +91,10 @@ jobs:
           cp -r "$RUNNER_TEMP/lime-src/project/lib/." lime/project/lib/ || true
           test -d lime/project/lib/sdl/include
           test -d lime/project/lib/cairo/src
-          grep -q 'value="-std=c++20"' lime/project/lib/openal-files.xml || sed -i 's#\(<compilerflag value="-Wno-switch" if="android" />\)#\1\n        <compilerflag value="-std=c++20" if="android || linux" />#' lime/project/lib/openal-files.xml
-          grep -n 'std=c++20' lime/project/lib/openal-files.xml
+          grep -q 'value="-std=c++20"' lime/project/lib/openal-files.xml || sed -i 's#\(<compilerflag value="-Wno-switch" if="android" />\)#\1\n        <compilerflag value="-std=c++20" if="android || linux" />\n        <compilerflag value="/std:c++20" if="windows" />#' lime/project/lib/openal-files.xml
+          grep -n 'c++20' lime/project/lib/openal-files.xml
+          grep -q 'HXCPP_NO_CPP11' lime/project/Build.xml || sed -i 's#\(<set name="HXCPP_CPP20" value="1" />\)#\1\n    <set name="HXCPP_NO_CPP11" value="1" />#' lime/project/Build.xml
+          grep -n 'HXCPP_NO_CPP11\|HXCPP_CPP20' lime/project/Build.xml
 
       - name: Configurar Haxe
         uses: krdlab/setup-haxe@v1
@@ -142,8 +146,10 @@ jobs:
           git -C "$RUNNER_TEMP/lime-src" submodule update --init --recursive --depth 1 || git -C "$RUNNER_TEMP/lime-src" submodule update --init --recursive
           mkdir -p lime/project/lib
           cp -r "$RUNNER_TEMP/lime-src/project/lib/." lime/project/lib/
-          grep -q 'value="-std=c++20"' lime/project/lib/openal-files.xml || sed -i 's#\(<compilerflag value="-Wno-switch" if="android" />\)#\1\n        <compilerflag value="-std=c++20" if="android || linux" />#' lime/project/lib/openal-files.xml
-          grep -n 'std=c++20' lime/project/lib/openal-files.xml
+          grep -q 'value="-std=c++20"' lime/project/lib/openal-files.xml || sed -i 's#\(<compilerflag value="-Wno-switch" if="android" />\)#\1\n        <compilerflag value="-std=c++20" if="android || linux" />\n        <compilerflag value="/std:c++20" if="windows" />#' lime/project/lib/openal-files.xml
+          grep -n 'c++20' lime/project/lib/openal-files.xml
+          grep -q 'HXCPP_NO_CPP11' lime/project/Build.xml || sed -i 's#\(<set name="HXCPP_CPP20" value="1" />\)#\1\n    <set name="HXCPP_NO_CPP11" value="1" />#' lime/project/Build.xml
+          grep -n 'HXCPP_NO_CPP11\|HXCPP_CPP20' lime/project/Build.xml
 
       - name: Configurar NDK
         id: ndk
