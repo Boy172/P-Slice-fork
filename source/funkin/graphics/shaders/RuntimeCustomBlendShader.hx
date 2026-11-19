@@ -317,6 +317,30 @@ void main()
     return;
   }
 
+  if (debugOut == 4)
+  {
+    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    return;
+  }
+
+  if (debugOut == 5)
+  {
+    gl_FragColor = vec4(screenCoord.x, screenCoord.y, 0.0, 1.0);
+    return;
+  }
+
+  if (debugOut == 6)
+  {
+    gl_FragColor = vec4(openfl_TextureCoordv.x, openfl_TextureCoordv.y, 0.0, 1.0);
+    return;
+  }
+
+  if (debugOut == 7)
+  {
+    gl_FragColor = vec4(flixel_texture2D(bitmap, openfl_TextureCoordv).rgb, 1.0);
+    return;
+  }
+
   src.rgb = src.a > 0.0 ? src.rgb / src.a : src.rgb;
 
   vec3 res = blend(bg.rgb, src.rgb);
