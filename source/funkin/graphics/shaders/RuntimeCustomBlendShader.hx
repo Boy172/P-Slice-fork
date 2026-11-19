@@ -34,6 +34,7 @@ class RuntimeCustomBlendShader extends RuntimePostEffectShader
 uniform sampler2D sourceSwag;
 uniform sampler2D backgroundSwag;
 uniform int blendMode;
+uniform int debugOut;
 
 float minVec3(vec3 color)
 {
@@ -297,6 +298,24 @@ void main()
 {
   vec4 bg = flixel_texture2D(backgroundSwag, openfl_TextureCoordv);
   vec4 src = flixel_texture2D(sourceSwag, screenCoord);
+
+  if (debugOut == 1)
+  {
+    gl_FragColor = vec4(src.rgb, 1.0);
+    return;
+  }
+
+  if (debugOut == 2)
+  {
+    gl_FragColor = vec4(bg.rgb, 1.0);
+    return;
+  }
+
+  if (debugOut == 3)
+  {
+    gl_FragColor = vec4(bg.a, src.a, 0.0, 1.0);
+    return;
+  }
 
   src.rgb = src.a > 0.0 ? src.rgb / src.a : src.rgb;
 
