@@ -23,6 +23,15 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
+      - name: Descargar dependencias de Lime
+        shell: bash
+        run: |
+          git clone https://github.com/FunkinCrew/lime.git "$RUNNER_TEMP/lime-src"
+          git -C "$RUNNER_TEMP/lime-src" checkout 268dacfb2609766e14bef9ea5b669e91501852d2
+          git -C "$RUNNER_TEMP/lime-src" submodule update --init --recursive --depth 1 || git -C "$RUNNER_TEMP/lime-src" submodule update --init --recursive
+          mkdir -p lime/project/lib
+          cp -r "$RUNNER_TEMP/lime-src/project/lib/." lime/project/lib/
+
       - name: Instalar paquetes del sistema
         run: |
           sudo apt-get update
@@ -66,6 +75,15 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
+      - name: Descargar dependencias de Lime
+        shell: bash
+        run: |
+          git clone https://github.com/FunkinCrew/lime.git "$RUNNER_TEMP/lime-src"
+          git -C "$RUNNER_TEMP/lime-src" checkout 268dacfb2609766e14bef9ea5b669e91501852d2
+          git -C "$RUNNER_TEMP/lime-src" submodule update --init --recursive --depth 1 || git -C "$RUNNER_TEMP/lime-src" submodule update --init --recursive
+          mkdir -p lime/project/lib
+          cp -r "$RUNNER_TEMP/lime-src/project/lib/." lime/project/lib/
+
       - name: Configurar Haxe
         uses: krdlab/setup-haxe@v1
         with:
@@ -107,6 +125,15 @@ jobs:
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
+
+      - name: Descargar dependencias de Lime
+        shell: bash
+        run: |
+          git clone https://github.com/FunkinCrew/lime.git "$RUNNER_TEMP/lime-src"
+          git -C "$RUNNER_TEMP/lime-src" checkout 268dacfb2609766e14bef9ea5b669e91501852d2
+          git -C "$RUNNER_TEMP/lime-src" submodule update --init --recursive --depth 1 || git -C "$RUNNER_TEMP/lime-src" submodule update --init --recursive
+          mkdir -p lime/project/lib
+          cp -r "$RUNNER_TEMP/lime-src/project/lib/." lime/project/lib/
 
       - name: Configurar NDK
         id: ndk
