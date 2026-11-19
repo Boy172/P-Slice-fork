@@ -210,6 +210,7 @@ class FunkinCamera extends PsychCamera
       _blendShader.backgroundSwag = _cameraTexture;
 
       _blendShader.blendSwag = blend;
+      _blendShader.setInt('debugOut', debugMode >= 5 ? debugMode - 4 : 0);
       _blendShader.updateViewInfo(width, height, this);
 
       _backgroundFrame.parent.bitmap = debugMode == 2 ? _cameraTexture : _blendRenderTexture.graphic.bitmap;
@@ -221,7 +222,7 @@ class FunkinCamera extends PsychCamera
       {
         camera.zoom = this.zoom;
         matrix.scale(clampedScale, clampedScale);
-        camera.drawPixels(_backgroundFrame, null, matrix, canvas.transform.colorTransform, null, false, debugMode == 0 ? _blendShader : null);
+        camera.drawPixels(_backgroundFrame, null, matrix, canvas.transform.colorTransform, null, false, debugMode == 0 || debugMode >= 5 ? _blendShader : null);
       });
 
       _backgroundRenderTexture.render();
