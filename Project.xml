@@ -241,7 +241,7 @@
 		<section if="mobile">
 			<config type="android" pslice-mono-icon="art/mobile/iconMono.png" />
 			<config type="ios" pslice-icon-dir="art/mobile/PSlice.appiconset" />
-			<icon path="art/mobile/iconAdaptive.png" if="android" />
+			<icon path="art/mobile/androidRes" adaptive="true" if="android" />
 			<icon path="art/mobile/iconMobile.png" unless="android" />
 		</section>
 
