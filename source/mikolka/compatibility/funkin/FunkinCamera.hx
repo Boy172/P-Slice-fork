@@ -65,6 +65,8 @@ class FunkinCamera extends PsychCamera
 
     public var id:String;
 
+  static var debugMode:Int = 0;
+
   static var reportedBlends:Array<String> = [];
   static var shaderUsed:Bool = false;
   static var reportedCompile:Bool = false;
@@ -187,6 +189,8 @@ class FunkinCamera extends PsychCamera
       _blendShader.backgroundSwag = _cameraTexture;
 
       _blendShader.blendSwag = blend;
+      if (FlxG.mouse.justPressed) debugMode = (debugMode + 1) % 8;
+      _blendShader.setInt('debugOut', debugMode);
       _blendShader.updateViewInfo(width, height, this);
 
       _backgroundFrame.parent.bitmap = _blendRenderTexture.graphic.bitmap;
