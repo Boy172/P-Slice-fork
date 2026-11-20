@@ -14,9 +14,27 @@ class PsychJNI #if (lime >= "8.0.0") implements JNISafety #end
 	public static inline function setOrientation(width:Int, height:Int, resizeable:Bool, hint:String):Dynamic
 		return setOrientation_jni(width, height, resizeable, hint);
 
-	public static inline function getCurrentOrientationAsString():String
+	public static function getCurrentOrientationAsString():String
 	{
-		return switch (getCurrentOrientation_jni())
+		var orientation:Int = SDL_ORIENTATION_UNKNOWN;
+
+		if (getCurrentOrientation_jni != null)
+		{
+			orientation = getCurrentOrientation_jni();
+		}
+		else if (getCurrentRotation_jni != null)
+		{
+			orientation = switch (Std.int(getCurrentRotation_jni()))
+			{
+				case 0: SDL_ORIENTATION_PORTRAIT;
+				case 90: SDL_ORIENTATION_LANDSCAPE;
+				case 180: SDL_ORIENTATION_PORTRAIT_FLIPPED;
+				case 270: SDL_ORIENTATION_LANDSCAPE_FLIPPED;
+				default: SDL_ORIENTATION_UNKNOWN;
+			}
+		}
+
+		return switch (orientation)
 		{
 			case SDL_ORIENTATION_PORTRAIT: "Portrait";
 			case SDL_ORIENTATION_LANDSCAPE: "LandscapeRight";
@@ -26,8 +44,8 @@ class PsychJNI #if (lime >= "8.0.0") implements JNISafety #end
 		}
 	}
 
-	public static inline function isScreenKeyboardShown():Dynamic
-		return isScreenKeyboardShown_jni();
+	public static function isScreenKeyboardShown():Dynamic
+		return isScreenKeyboardShown_jni != null ? isScreenKeyboardShown_jni() : false;
 
 	public static inline function clipboardHasText():Dynamic
 		return clipboardHasText_jni();
@@ -45,16 +63,17 @@ class PsychJNI #if (lime >= "8.0.0") implements JNISafety #end
 		return setActivityTitle_jni(title);
 
 	@:noCompletion private static var setOrientation_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'setOrientation',
-		'(IIZLjava/lang/String;)V');
-	@:noCompletion private static var getCurrentOrientation_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'getCurrentOrientation', '()I');
-	@:noCompletion private static var isScreenKeyboardShown_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'isScreenKeyboardShown', '()Z');
-	@:noCompletion private static var clipboardHasText_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'clipboardHasText', '()Z');
+		'(IIZLjava/lang/String;)V', false, true);
+	@:noCompletion private static var getCurrentOrientation_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'getCurrentOrientation', '()I', false, true);
+	@:noCompletion private static var getCurrentRotation_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'getCurrentRotation', '()I', false, true);
+	@:noCompletion private static var isScreenKeyboardShown_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'isScreenKeyboardShown', '()Z', false, true);
+	@:noCompletion private static var clipboardHasText_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'clipboardHasText', '()Z', false, true);
 	@:noCompletion private static var clipboardGetText_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'clipboardGetText',
-		'()Ljava/lang/String;');
+		'()Ljava/lang/String;', false, true);
 	@:noCompletion private static var clipboardSetText_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'clipboardSetText',
-		'(Ljava/lang/String;)V');
-	@:noCompletion private static var manualBackButton_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'manualBackButton', '()V');
+		'(Ljava/lang/String;)V', false, true);
+	@:noCompletion private static var manualBackButton_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'manualBackButton', '()V', false, true);
 	@:noCompletion private static var setActivityTitle_jni:Dynamic = JNI.createStaticMethod('org/libsdl/app/SDLActivity', 'setActivityTitle',
-		'(Ljava/lang/String;)Z');
+		'(Ljava/lang/String;)Z', false, true);
 }
 #end
