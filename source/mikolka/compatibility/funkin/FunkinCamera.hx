@@ -160,7 +160,7 @@ class FunkinCamera extends PsychCamera
       _blendShader.backgroundSwag = _cameraTexture;
 
       _blendShader.blendSwag = blend;
-      if (FlxG.mouse.justPressed) debugMode = (debugMode + 1) % 8;
+      debugMode = Std.int(Lib.getTimer() / 5000) % 8;
       _blendShader.setInt('debugOut', debugMode);
       _blendShader.updateViewInfo(width, height, this);
 
