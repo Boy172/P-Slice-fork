@@ -67,21 +67,6 @@ class FunkinCamera extends PsychCamera
 
   static var debugMode:Int = 0;
 
-  static var reportedBlends:Array<String> = [];
-  static var shaderUsed:Bool = false;
-  static var reportedCompile:Bool = false;
-
-  static function say(text:String):Void
-  {
-    try
-    {
-      Lib.application.window.alert(text, 'FunkinCamera');
-    }
-    catch (e)
-    {
-    }
-  }
-
     public var crossCameraBlending:Bool;
 
   var _blendShader:RuntimeCustomBlendShader;
@@ -123,22 +108,8 @@ class FunkinCamera extends PsychCamera
     var shouldUseShader:Bool = ((!hasKhronosExtension && KHR_BLEND_MODES.contains(blend)) || SHADER_REQUIRED_BLEND_MODES.contains(blend))
       && !RuntimePostEffectShader.compileFailed;
 
-    if (shaderUsed && !reportedCompile && RuntimePostEffectShader.compileFailed)
-    {
-      reportedCompile = true;
-      say('SHADER FALLO\n' + RuntimePostEffectShader.lastError);
-    }
-
-    if (blend != null && (KHR_BLEND_MODES.contains(blend) || SHADER_REQUIRED_BLEND_MODES.contains(blend)) && reportedBlends.indexOf(Std.string(blend)) == -1)
-    {
-      reportedBlends.push(Std.string(blend));
-      say('blend=' + blend + '\nkhr=' + hasKhronosExtension + '\ncoherent=' + coherentBlendsSupported + '\nusaShader=' + shouldUseShader + '\ncompileFailed='
-        + RuntimePostEffectShader.compileFailed + '\ncam=' + id + ' ' + width + 'x' + height + '\nlista=' + KHR_BLEND_MODES.contains(blend));
-    }
-
     if (shouldUseShader)
     {
-      shaderUsed = true;
       ensureBlendResources();
 
       if (crossCameraBlending)
