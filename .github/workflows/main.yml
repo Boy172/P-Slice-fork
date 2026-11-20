@@ -14,7 +14,7 @@ jobs:
     permissions: write-all
     uses: ./.github/workflows/dependencies.yml
     with:
-      os: macos-15
+      os: ubuntu-24.04
       CACHE_NAME: P-Slice.1.0.mobile-cache-nofirebase
       setupScript: sh ./setup/mobile.sh
 
@@ -26,18 +26,6 @@ jobs:
       os: ubuntu-24.04
       setupScript: sh ./setup/unix.sh
       CACHE_NAME: P-Slice.1.0.desktop-cache
-
-  BuildMacos:
-    name: macos
-    needs: BuildMobileCache
-    permissions: write-all
-    uses: ./.github/workflows/mac-universal.yml
-    with:
-      exportPath: macos
-      cachePath: P-Slice.1.0.build-macos
-      cacheLibrariesPath: P-Slice.1.0.mobile-cache-nofirebase
-      artifactName: P-Slice.1.0.macos
-      artifactPath: export/release/macos/bin/*
 
   BuildDesktop:
     name: Build Desktop
@@ -57,7 +45,7 @@ jobs:
             artifactPath: export\release\windows\bin\*
 
           - name: Linux
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             buildArgs: "linux -final"
             exportPath: linux
             artifactName: P-Slice.1.0.linux
@@ -92,15 +80,6 @@ jobs:
             artifactName: P-Slice.1.0.android
             cachePath: P-Slice.1.0.build-android
             artifactPath: "export/release/android/bin/app/build/outputs/apk/release/*.apk"
-
-          - name: iOS
-            os: macos-15
-            buildArgs: "ios -nosign -final"
-            exportPath: ios/PSliceEngine/haxe/build/Release-iphoneos-64/
-            cacheLibrariesPath: P-Slice.1.0.mobile-cache-nofirebase
-            artifactName: P-Slice.1.0.ios
-            artifactPath: "export/release/ios/build/Release-iphoneos/*.ipa"
-            cachePath: P-Slice.1.0.build-ios
 
     uses: ./.github/workflows/build.yml
     secrets: inherit
