@@ -65,8 +65,6 @@ class FunkinCamera extends PsychCamera
 
     public var id:String;
 
-  static var debugMode:Int = 0;
-
     public var crossCameraBlending:Bool;
 
   var _blendShader:RuntimeCustomBlendShader;
@@ -160,8 +158,6 @@ class FunkinCamera extends PsychCamera
       _blendShader.backgroundSwag = _cameraTexture;
 
       _blendShader.blendSwag = blend;
-      debugMode = Std.int(Lib.getTimer() / 5000) % 8;
-      _blendShader.setInt('debugOut', debugMode);
       _blendShader.updateViewInfo(width, height, this);
 
       _backgroundFrame.parent.bitmap = _blendRenderTexture.graphic.bitmap;
