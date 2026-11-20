@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/dependencies.yml
     with:
       os: ubuntu-24.04
-      CACHE_NAME: P-Slice.1.0.mobile-cache-nofirebase
+      CACHE_NAME: P-Slice.1.0.mobile-cache-flx61
       setupScript: sh ./setup/mobile.sh
 
   BuildDesktopCache:
@@ -25,7 +25,7 @@ jobs:
     with:
       os: ubuntu-24.04
       setupScript: sh ./setup/unix.sh
-      CACHE_NAME: P-Slice.1.0.desktop-cache
+      CACHE_NAME: P-Slice.1.0.desktop-cache-flx61
 
   BuildDesktop:
     name: Build Desktop
@@ -40,7 +40,7 @@ jobs:
             buildArgs: "windows -final"
             exportPath: windows
             artifactName: P-Slice.1.0.windows
-            cacheLibrariesPath: P-Slice.1.0.desktop-cache
+            cacheLibrariesPath: P-Slice.1.0.desktop-cache-flx61
             cachePath: P-Slice.1.0.build-windows
             artifactPath: export\release\windows\bin\*
 
@@ -50,7 +50,7 @@ jobs:
             exportPath: linux
             artifactName: P-Slice.1.0.linux
             cachePath: P-Slice.1.0.build-linux
-            cacheLibrariesPath: P-Slice.1.0.desktop-cache
+            cacheLibrariesPath: P-Slice.1.0.desktop-cache-flx61
             artifactPath: export/release/linux/bin/*
 
     uses: ./.github/workflows/build.yml
@@ -76,7 +76,7 @@ jobs:
             os: ubuntu-24.04
             exportPath: android
             buildArgs: "android"
-            cacheLibrariesPath: P-Slice.1.0.mobile-cache-nofirebase
+            cacheLibrariesPath: P-Slice.1.0.mobile-cache-flx61
             artifactName: P-Slice.1.0.android
             cachePath: P-Slice.1.0.build-android
             artifactPath: "export/release/android/bin/app/build/outputs/apk/release/*.apk"
