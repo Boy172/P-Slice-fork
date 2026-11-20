@@ -20,7 +20,6 @@ import openfl.display.PNGEncoderOptions;
 import openfl.geom.Rectangle;
 import openfl.utils.ByteArray;
 import openfl.events.MouseEvent;
-import flixel.addons.plugin.screengrab.FlxScreenGrab;
 
 typedef ScreenshotPluginParams =
 {
