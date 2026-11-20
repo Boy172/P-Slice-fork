@@ -4,7 +4,7 @@ package mobile.psychlua;
 
 import psychlua.CustomSubstate;
 #if LUA_ALLOWED
-import lime.ui.Haptic;
+import mikolka.funkin.utils.HapticUtil;
 import psychlua.FunkinLua;
 import psychlua.LuaUtils;
 import mobile.backend.TouchUtil;
@@ -94,7 +94,7 @@ class MobileFunctions
 				return FunkinLua.luaTrace('vibrate: No duration specified.');
 			else if (period == null)
 				period = 0;
-			return Haptic.vibrate(period, duration);
+			return HapticUtil.vibrate(period / 1000, duration / 1000);
 		});
 
 		Lua_helper.add_callback(lua, "addTouchPad", (DPadMode:String, ActionMode:String, ?addToCustomSubstate:Bool = false, ?posAtCustomSubstate:Int = -1) ->
