@@ -65,14 +65,10 @@ jobs:
       - name: Patch libraries for new OpenFL
         shell: bash
         run: |
-          sed -i 's/SharedObject\.__resolveClass(name)/Type.resolveClass(name)/' .haxelib/flixel/git/flixel/util/FlxSave.hx
-          sed -i 's/return Lib\.getTimer();/return Std.int(Lib.getTimer());/' .haxelib/flixel/git/flixel/FlxGame.hx
           for f in $(grep -rlE "__enterFrame\([A-Za-z_]+:Int\)" .haxelib --include=*.hx 2>/dev/null || true); do
             sed -i -E 's/(__enterFrame\([A-Za-z_]+):Int\)/\1:Float)/' "$f"
             echo "patched $f"
           done
-          grep -n "resolveClass(name)" .haxelib/flixel/git/flixel/util/FlxSave.hx
-          grep -n "Std.int(Lib.getTimer())" .haxelib/flixel/git/flixel/FlxGame.hx
 
       - name: Restore existing build cache for faster compilation
         id: load-cache
