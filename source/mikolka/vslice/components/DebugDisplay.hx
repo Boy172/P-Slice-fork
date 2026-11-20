@@ -147,7 +147,7 @@ class FunkinDebugDisplay extends Sprite
 		addChild(infoDisplay);
 	}
 
-	override function __enterFrame(deltaTime:Int):Void
+	override function __enterFrame(deltaTime:Float):Void
 	{
 		if(!visible) return;
 		#if html5
