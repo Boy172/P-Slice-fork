@@ -10,10 +10,19 @@ import haxe.Exception;
 #if sys
 import sys.io.File;
 #end
-import lime.ui.*;
+import lime.ui.FileDialog;
+import lime.ui.FileDialogFilter;
+import openfl.Lib;
 
 import flixel.FlxBasic;
 import StringTools;
+
+enum abstract FileDialogType(Int)
+{
+	var OPEN;
+	var SAVE;
+	var OPEN_DIRECTORY;
+}
 
 //Currently only supports OPEN and SAVE, might change that in the future, who knows
 class FileDialogHandler extends FlxBasic
@@ -196,24 +205,35 @@ class FileReferenceCustom extends FileReference
 		__path = null;
 
 		#if desktop
-		var filter = null;
+		var window = Lib.current.stage.window;
+		var filters:Array<FileDialogFilter> = null;
 
 		if (typeFilter != null)
 		{
-			var filters = [];
-
-			for (type in typeFilter)
-			{
-				filters.push(type.extension.replace("*.", "").replace(";", ","));
-			}
-
-			filter = filters.join(";");
+			filters = @:privateAccess openfl.filesystem.File.__getFilterTypes(typeFilter);
 		}
 
-		var openFileDialog = new FileDialog();
-		openFileDialog.onCancel.add(openFileDialog_onCancel);
-		openFileDialog.onSelect.add(openFileDialog_onSelect);
-		openFileDialog.browse(browseType, filter, defaultName, title);
+		switch (browseType)
+		{
+			case OPEN_DIRECTORY:
+				FileDialog.openDirectory(window, title, function(paths:Array<String>):Void
+				{
+					if (paths != null && paths.length > 0) openFileDialog_onSelect(paths[0]);
+					else openFileDialog_onCancel();
+				}, defaultName, false);
+			case SAVE:
+				FileDialog.saveFile(window, title, function(path:String, filter:FileDialogFilter):Void
+				{
+					if (path != null && path.length > 0) saveFileDialog_onSelect(path);
+					else saveFileDialog_onCancel();
+				}, filters, defaultName);
+			default:
+				FileDialog.openFile(window, title, function(paths:Array<String>, filter:FileDialogFilter):Void
+				{
+					if (paths != null && paths.length > 0) openFileDialog_onSelect(paths[0]);
+					else openFileDialog_onCancel();
+				}, filters, defaultName, false);
+		}
 		return true;
 		#elseif (js && html5)
 		var filter = null;
