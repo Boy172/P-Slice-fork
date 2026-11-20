@@ -4,7 +4,7 @@
 # https://haxe.org/download
 echo Installing dependencies...
 #Universal
-haxelib git flixel https://github.com/Psych-Slice/p-slice-1.0-flixel.git 9b1192a23fcfb456123efa14c63c8506ded20e5e --quiet --skip-dependencies
+haxelib git flixel https://github.com/FunkinCrew/flixel.git 141f23c400c0508c76d5a09a143f5ce6790f8122 --quiet --skip-dependencies
 haxelib git grig.audio https://gitlab.com/haxe-grig/grig.audio.git cbf91e2180fd2e374924fe74844086aab7891666 
 haxelib git flxanimate https://github.com/Psych-Slice/FlxAnimate.git 82a720663f9ed6328d91a727c2b17501d91e3b11 --skip-dependencies
 haxelib git flixel-animate https://github.com/MaybeMaru/flixel-animate.git c5e3393c70b71a191f20fa902114cea92042e486 --skip-dependencies
