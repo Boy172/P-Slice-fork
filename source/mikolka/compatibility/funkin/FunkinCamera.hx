@@ -11,10 +11,7 @@ import flixel.math.FlxMatrix;
 import flixel.math.FlxRect;
 import flixel.system.FlxAssets.FlxShader;
 import funkin.graphics.framebuffer.FixedBitmapData;
-import flixel.addons.display.FlxRuntimeShader;
-import funkin.graphics.shaders.RuntimeBakedBlendShader;
 import funkin.graphics.shaders.RuntimeSceneBlendShader;
-import funkin.graphics.shaders.RuntimeCustomBlendShader;
 import funkin.graphics.shaders.RuntimePostEffectShader;
 import openfl.display.OpenGLRenderer;
 import openfl.Lib;
@@ -24,6 +21,14 @@ import flixel.graphics.tile.FlxDrawQuadsItem;
 import flixel.graphics.tile.FlxDrawTrianglesItem;
 
 using funkin.graphics.framebuffer.BitmapDataUtil;
+
+typedef BlendSlot =
+{
+  var cam:FixedBitmapData;
+  var blend:RenderTexture;
+  var frame:FlxFrame;
+  var shaders:Map<Int, RuntimeSceneBlendShader>;
+}
 
 @:access(openfl.display.DisplayObject) @:access(openfl.display.BitmapData) @:access(openfl.display3D.Context3D) @:access(openfl.display3D.textures.TextureBase) @:access(flixel.graphics.FlxGraphic) @:access(flixel.graphics.frames.FlxFrame) @:access(openfl.display.OpenGLRenderer) @:access(openfl.geom.ColorTransform)
 class FunkinCamera extends PsychCamera
@@ -65,18 +70,10 @@ class FunkinCamera extends PsychCamera
 
     public var crossCameraBlending:Bool;
 
-  var _blendShader:RuntimeCustomBlendShader;
-  var _backgroundFrame:FlxFrame;
-  var _blendRenderTexture:RenderTexture;
-  var _backgroundRenderTexture:RenderTexture;
-  var _cameraTexture:FixedBitmapData;
-  var _cameraMatrix:FlxMatrix;
-  var _baked:Map<Int, RuntimeSceneBlendShader>;
-  var _red:Map<Int, RuntimeBakedBlendShader>;
-  var _plain:FlxRuntimeShader;
-  var _post:RuntimePostEffectShader;
-  var _dbgCount:Int = 0;
-  var _dbgMatrix:FlxMatrix;
+  var _slots:Array<BlendSlot>;
+  var _slot:Int = 0;
+  var _slotTick:Float = -1;
+  var _blendMatrix:FlxMatrix;
 
   public function new(id:String = 'unknown', x:Float = 0, y:Float = 0, width:Int = 0, height:Int = 0, zoom:Float = 0)
   {
@@ -84,27 +81,30 @@ class FunkinCamera extends PsychCamera
 
     this.id = id;
 
-    _backgroundFrame = new FlxFrame(new FlxGraphic('', null));
-    _backgroundFrame.frame = new FlxRect();
-
-    _cameraMatrix = new FlxMatrix();
-    _baked = new Map();
-    _red = new Map();
-    _dbgMatrix = new FlxMatrix();
+    _slots = [];
+    _blendMatrix = new FlxMatrix();
 
     crossCameraBlending = false;
   }
 
-  function ensureBlendResources():Void
+  function getSlot(index:Int):BlendSlot
   {
-    if (_blendShader != null) return;
+    while (_slots.length <= index)
+    {
+      var cam:FixedBitmapData = FixedBitmapData.create(this.width, this.height);
+      var graphic:FlxGraphic = new FlxGraphic('', null);
+      graphic.bitmap = cam;
+      var slotFrame:FlxFrame = new FlxFrame(graphic);
+      slotFrame.frame = new FlxRect(0, 0, this.width, this.height);
+      _slots.push({
+        cam: cam,
+        blend: new RenderTexture(this.width, this.height),
+        frame: slotFrame,
+        shaders: new Map()
+      });
+    }
 
-    _blendShader = new RuntimeCustomBlendShader();
-
-    _backgroundRenderTexture = new RenderTexture(this.width, this.height);
-    _blendRenderTexture = new RenderTexture(this.width, this.height);
-
-    _cameraTexture = FixedBitmapData.create(this.width, this.height);
+    return _slots[index];
   }
 
   override function drawPixels(?frame:FlxFrame, ?pixels:BitmapData, matrix:FlxMatrix, ?transform:ColorTransform, ?blend:BlendMode, ?smoothing:Bool = false,
@@ -115,7 +115,14 @@ class FunkinCamera extends PsychCamera
 
     if (shouldUseShader)
     {
-      ensureBlendResources();
+      if (FlxG.game.ticks != _slotTick)
+      {
+        _slotTick = FlxG.game.ticks;
+        _slot = 0;
+      }
+
+      var slot:BlendSlot = getSlot(_slot < 3 ? _slot : 3);
+      _slot++;
 
       if (crossCameraBlending)
       {
@@ -129,7 +136,7 @@ class FunkinCamera extends PsychCamera
           }
         }
 
-        _cameraTexture.drawCameraScreens(camerasUnderneath);
+        slot.cam.drawCameraScreens(camerasUnderneath);
 
         for (camera in camerasUnderneath)
         {
@@ -139,16 +146,14 @@ class FunkinCamera extends PsychCamera
       }
       else
       {
-        _cameraTexture.drawCameraScreen(this);
+        slot.cam.drawCameraScreen(this);
       }
-
-      _backgroundFrame.frame.set(0, 0, this.width, this.height);
 
       this.clearDrawStack();
       this.canvas.graphics.clear();
 
-      _blendRenderTexture.init(this.width, this.height);
-      _blendRenderTexture.drawToCamera((camera, frameMatrix) ->
+      slot.blend.init(this.width, this.height);
+      slot.blend.drawToCamera((camera, frameMatrix) ->
       {
         var pivotX:Float = width / 2;
         var pivotY:Float = height / 2;
@@ -159,94 +164,23 @@ class FunkinCamera extends PsychCamera
         frameMatrix.translate(pivotX, pivotY);
         camera.drawPixels(frame, pixels, frameMatrix, transform, null, smoothing, shader);
       });
-      _blendRenderTexture.render();
+      slot.blend.render();
 
       var modeId:Int = cast blend;
-      var stage:Int = Std.int(_dbgCount / 240) % 5;
-      var trivial:String = '#pragma header\nvoid main()\n{\n  gl_FragColor = flixel_texture2D(bitmap, openfl_TextureCoordv);\n}\n';
-      var active:FlxRuntimeShader = null;
-
-      if (stage == 0 || stage == 4)
+      var blendShader:RuntimeSceneBlendShader = slot.shaders.get(modeId);
+      if (blendShader == null)
       {
-        if (_plain == null) _plain = new FlxRuntimeShader(trivial, null);
-        active = _plain;
+        blendShader = new RuntimeSceneBlendShader(modeId);
+        slot.shaders.set(modeId, blendShader);
       }
-      else if (stage == 1)
-      {
-        if (_post == null) _post = new RuntimePostEffectShader(trivial);
-        _post.updateViewInfo(width, height, this);
-        active = _post;
-      }
-      else if (stage == 2)
-      {
-        var red:RuntimeBakedBlendShader = _red.get(modeId);
-        if (red == null)
-        {
-          red = new RuntimeBakedBlendShader(modeId, 4);
-          _red.set(modeId, red);
-        }
-        red.sourceSwag = _blendRenderTexture.graphic.bitmap;
-        red.backgroundSwag = _cameraTexture;
-        red.updateViewInfo(width, height, this);
-        active = red;
-      }
-      else
-      {
-        var scene:RuntimeSceneBlendShader = _baked.get(modeId);
-        if (scene == null)
-        {
-          scene = new RuntimeSceneBlendShader(modeId);
-          _baked.set(modeId, scene);
-        }
-        scene.sourceSwag = _blendRenderTexture.graphic.bitmap;
-        scene.updateViewInfo(width, height, this);
-        active = scene;
-      }
+      blendShader.sourceSwag = slot.blend.graphic.bitmap;
+      blendShader.updateViewInfo(width, height, this);
 
-      _backgroundFrame.parent.bitmap = _cameraTexture;
-      _backgroundFrame.frame.set(0, 0, this.width, this.height);
+      _blendMatrix.identity();
+      _blendMatrix.scale(1 / this.scaleX, 1 / this.scaleY);
+      _blendMatrix.translate(((width - width / this.scaleX) * 0.5), ((height - height / this.scaleY) * 0.5));
 
-      var clampedScale:Float = Math.max(1, Lib.current.stage.window.scale);
-
-      _backgroundRenderTexture.init(Std.int(this.width * clampedScale), Std.int(this.height * clampedScale));
-      _backgroundRenderTexture.drawToCamera((camera, matrix) ->
-      {
-        camera.zoom = this.zoom;
-        matrix.scale(clampedScale, clampedScale);
-        camera.drawPixels(_backgroundFrame, null, matrix, canvas.transform.colorTransform, null, false, active);
-      });
-
-      _backgroundRenderTexture.render();
-
-
-      _dbgCount++;
-      if (_dbgCount % 240 == 1 && _dbgCount < 1200)
-      {
-        var names:Array<String> = ['0 FlxRuntimeShader simple', '1 PostEffect simple', '2 rojo sin variables', '3 plan B mezcla', '4 simple directo en camara'];
-        try
-        {
-          Lib.application.window.alert('Etapa ' + names[stage] + ' compileFailed=' + RuntimePostEffectShader.compileFailed, 'Etapa');
-        }
-        catch (e)
-        {
-        }
-      }
-
-      _cameraMatrix.identity();
-      _cameraMatrix.scale(1 / (this.scaleX * clampedScale), 1 / (this.scaleY * clampedScale));
-      _cameraMatrix.translate(((width - width / this.scaleX) * 0.5), ((height - height / this.scaleY) * 0.5));
-
-      if (stage == 4)
-      {
-        _dbgMatrix.identity();
-        _dbgMatrix.scale(1 / this.scaleX, 1 / this.scaleY);
-        _dbgMatrix.translate(((width - width / this.scaleX) * 0.5), ((height - height / this.scaleY) * 0.5));
-        super.drawPixels(_backgroundFrame, null, _dbgMatrix, null, null, smoothing, active);
-      }
-      else
-      {
-        super.drawPixels(_backgroundRenderTexture.graphic.imageFrame.frame, null, _cameraMatrix, null, null, smoothing, null);
-      }
+      super.drawPixels(slot.frame, null, _blendMatrix, null, null, smoothing, blendShader);
     }
     else
     {
@@ -317,8 +251,13 @@ class FunkinCamera extends PsychCamera
   {
     super.destroy();
 
-    if (_blendRenderTexture != null) _blendRenderTexture.destroy();
-    if (_backgroundRenderTexture != null) _backgroundRenderTexture.destroy();
-    if (_cameraTexture != null) _cameraTexture.dispose();
+    if (_slots != null)
+    {
+      for (slot in _slots)
+      {
+        slot.blend.destroy();
+        slot.cam.dispose();
+      }
+    }
   }
 }
