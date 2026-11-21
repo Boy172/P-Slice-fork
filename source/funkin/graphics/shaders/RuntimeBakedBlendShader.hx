@@ -341,8 +341,8 @@ void main()
 
   static function build(mode:Int):String
   {
-    var text:String = StringTools.replace(SOURCE, 'uniform int blendMode;', 'const int blendMode = ' + mode + ';');
-    return StringTools.replace(text, 'uniform int debugOut;', 'const int debugOut = 0;');
+    var text:String = SOURCE.split('uniform int blendMode;').join('const int blendMode = ' + mode + ';');
+    return text.split('uniform int debugOut;').join('const int debugOut = 0;');
   }
 
   public function new(mode:Int)
