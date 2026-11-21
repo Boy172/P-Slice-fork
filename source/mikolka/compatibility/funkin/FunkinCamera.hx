@@ -11,11 +11,7 @@ import flixel.math.FlxMatrix;
 import flixel.math.FlxRect;
 import flixel.system.FlxAssets.FlxShader;
 import funkin.graphics.framebuffer.FixedBitmapData;
-import flixel.addons.display.FlxRuntimeShader;
-import funkin.graphics.shaders.PlainCopyFx;
-import funkin.graphics.shaders.RuntimeSceneBlendShader;
 import funkin.graphics.shaders.SceneBlendFx;
-import funkin.graphics.shaders.RuntimePostEffectShader;
 import openfl.display.OpenGLRenderer;
 import openfl.Lib;
 import openfl.display.BitmapData;
@@ -30,14 +26,13 @@ typedef BlendSlot =
   var cam:FixedBitmapData;
   var blend:RenderTexture;
   var frame:FlxFrame;
-  var shaders:Map<Int, RuntimeSceneBlendShader>;
   var fx:SceneBlendFx;
 }
 
 @:access(openfl.display.DisplayObject) @:access(openfl.display.BitmapData) @:access(openfl.display3D.Context3D) @:access(openfl.display3D.textures.TextureBase) @:access(flixel.graphics.FlxGraphic) @:access(flixel.graphics.frames.FlxFrame) @:access(openfl.display.OpenGLRenderer) @:access(openfl.geom.ColorTransform)
 class FunkinCamera extends PsychCamera
 {
-    public static var hasKhronosExtension(get, never):Bool;
+  public static var hasKhronosExtension(get, never):Bool;
 
   static inline function get_hasKhronosExtension():Bool
   {
@@ -52,7 +47,7 @@ class FunkinCamera extends PsychCamera
     return OpenGLRenderer.__coherentBlendsSupported ?? false;
   }
 
-    static final KHR_BLEND_MODES:Array<BlendMode> = [
+  static final KHR_BLEND_MODES:Array<BlendMode> = [
     DARKEN,
     HARDLIGHT,
     #if !desktop LIGHTEN, #end
@@ -68,19 +63,16 @@ class FunkinCamera extends PsychCamera
     LUMINOSITY
   ];
 
-    static final SHADER_REQUIRED_BLEND_MODES:Array<BlendMode> = [INVERT];
+  static final SHADER_REQUIRED_BLEND_MODES:Array<BlendMode> = [INVERT];
 
-    public var id:String;
+  public var id:String;
 
-    public var crossCameraBlending:Bool;
+  public var crossCameraBlending:Bool;
 
   var _slots:Array<BlendSlot>;
   var _slot:Int = 0;
   var _slotTick:Float = -1;
   var _blendMatrix:FlxMatrix;
-  var _plain:FlxRuntimeShader;
-  var _copyFx:PlainCopyFx;
-  var _dbgCount:Int = 0;
 
   public function new(id:String = 'unknown', x:Float = 0, y:Float = 0, width:Int = 0, height:Int = 0, zoom:Float = 0)
   {
@@ -107,7 +99,6 @@ class FunkinCamera extends PsychCamera
         cam: cam,
         blend: new RenderTexture(this.width, this.height),
         frame: slotFrame,
-        shaders: new Map(),
         fx: new SceneBlendFx()
       });
     }
@@ -118,8 +109,7 @@ class FunkinCamera extends PsychCamera
   override function drawPixels(?frame:FlxFrame, ?pixels:BitmapData, matrix:FlxMatrix, ?transform:ColorTransform, ?blend:BlendMode, ?smoothing:Bool = false,
       ?shader:FlxShader):Void
   {
-    var shouldUseShader:Bool = ((!hasKhronosExtension && KHR_BLEND_MODES.contains(blend)) || SHADER_REQUIRED_BLEND_MODES.contains(blend))
-      && !RuntimePostEffectShader.compileFailed;
+    var shouldUseShader:Bool = (!hasKhronosExtension && KHR_BLEND_MODES.contains(blend)) || SHADER_REQUIRED_BLEND_MODES.contains(blend);
 
     if (shouldUseShader)
     {
@@ -175,57 +165,15 @@ class FunkinCamera extends PsychCamera
       slot.blend.render();
 
       var modeId:Int = cast blend;
-      var stage:Int = _dbgCount < 1200 ? Std.int(_dbgCount / 240) : 3;
-      var blendShader:FlxShader = null;
-
-      if (stage == 0)
-      {
-        if (_plain == null) _plain = new FlxRuntimeShader('#pragma header\nvoid main()\n{\n  gl_FragColor = flixel_texture2D(bitmap, openfl_TextureCoordv);\n}\n', null);
-        blendShader = _plain;
-      }
-      else if (stage == 1)
-      {
-        if (_copyFx == null) _copyFx = new PlainCopyFx();
-        blendShader = _copyFx;
-      }
-      else if (stage == 4)
-      {
-        var scene:RuntimeSceneBlendShader = slot.shaders.get(modeId);
-        if (scene == null)
-        {
-          scene = new RuntimeSceneBlendShader(modeId);
-          slot.shaders.set(modeId, scene);
-        }
-        scene.sourceSwag = slot.blend.graphic.bitmap;
-        scene.updateViewInfo(width, height, this);
-        blendShader = scene;
-      }
-      else
-      {
-        slot.fx.overlayTex.input = slot.blend.graphic.bitmap;
-        slot.fx.blendId.value = [modeId * 1.0];
-        slot.fx.dbgId.value = [stage == 2 ? 1.0 : 0.0];
-        blendShader = slot.fx;
-      }
-
-      _dbgCount++;
-      if (_dbgCount % 240 == 1 && _dbgCount < 1200)
-      {
-        var names:Array<String> = ['0 FlxRuntimeShader simple', '1 shader de compilacion simple', '2 solo overlay (compilacion)', '3 mezcla (compilacion)', '4 mezcla (ejecucion)'];
-        try
-        {
-          Lib.application.window.alert('Etapa ' + names[stage], 'Etapa');
-        }
-        catch (e)
-        {
-        }
-      }
+      slot.fx.overlayTex.input = slot.blend.graphic.bitmap;
+      slot.fx.blendId.value = [modeId * 1.0];
+      slot.fx.dbgId.value = [0.0];
 
       _blendMatrix.identity();
       _blendMatrix.scale(1 / this.scaleX, 1 / this.scaleY);
       _blendMatrix.translate(((width - width / this.scaleX) * 0.5), ((height - height / this.scaleY) * 0.5));
 
-      super.drawPixels(slot.frame, null, _blendMatrix, null, null, smoothing, blendShader);
+      super.drawPixels(slot.frame, null, _blendMatrix, null, null, smoothing, slot.fx);
     }
     else
     {
@@ -259,7 +207,7 @@ class FunkinCamera extends PsychCamera
       itemToReturn.colored = colored;
       itemToReturn.hasColorOffsets = hasColorOffsets;
       itemToReturn.blend = blend;
-          itemToReturn.shader = shader;
+      itemToReturn.shader = shader;
 
       itemToReturn.nextTyped = _headTiles;
       _headTiles = itemToReturn;
