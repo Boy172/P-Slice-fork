@@ -357,8 +357,8 @@ class FlxAtlasSprite extends PsychFlxAnimate
     if (true)
     {
       var frame = frames.getByIndex(index);
-      frame.tileMatrix[0] = prevFrame.frame.width / frame.frame.width;
-      frame.tileMatrix[3] = prevFrame.frame.height / frame.frame.height;
+      frame.tileMatrix.a = prevFrame.frame.width / frame.frame.width;
+      frame.tileMatrix.d = prevFrame.frame.height / frame.frame.height;
     }
   }
 
