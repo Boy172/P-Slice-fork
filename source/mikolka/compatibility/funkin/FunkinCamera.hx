@@ -69,7 +69,7 @@ class FunkinCamera extends PsychCamera
   var _backgroundRenderTexture:RenderTexture;
   var _cameraTexture:FixedBitmapData;
   var _cameraMatrix:FlxMatrix;
-  var _baked:Map<Int, RuntimeBakedBlendShader>;
+  var _baked:Map<String, RuntimeBakedBlendShader>;
   var _dbgCount:Int = 0;
   var _dbgAlerted:Bool = false;
 
@@ -155,37 +155,27 @@ class FunkinCamera extends PsychCamera
       _blendRenderTexture.render();
 
       var modeId:Int = cast blend;
-      var useBaked:Bool = Std.int(Lib.getTimer() / 8000) % 2 == 1;
-      var active:RuntimePostEffectShader = null;
-
-      if (useBaked)
+      var stage:Int = Std.int(_dbgCount / 240) % 4;
+      var dbgMode:Int = [0, 4, 2, 1][stage];
+      var key:String = modeId + '_' + dbgMode;
+      var active:RuntimeBakedBlendShader = _baked.get(key);
+      if (active == null)
       {
-        var baked:RuntimeBakedBlendShader = _baked.get(modeId);
-        if (baked == null)
-        {
-          baked = new RuntimeBakedBlendShader(modeId);
-          _baked.set(modeId, baked);
-        }
-        baked.sourceSwag = _blendRenderTexture.graphic.bitmap;
-        baked.backgroundSwag = _cameraTexture;
-        baked.updateViewInfo(width, height, this);
-        active = baked;
+        active = new RuntimeBakedBlendShader(modeId, dbgMode);
+        _baked.set(key, active);
       }
-      else
-      {
-        _blendShader.sourceSwag = _blendRenderTexture.graphic.bitmap;
-        _blendShader.backgroundSwag = _cameraTexture;
-        _blendShader.blendSwag = blend;
-        _blendShader.setInt('debugOut', 0);
-        _blendShader.updateViewInfo(width, height, this);
-        active = _blendShader;
-      }
+      active.sourceSwag = _blendRenderTexture.graphic.bitmap;
+      active.backgroundSwag = _cameraTexture;
+      active.updateViewInfo(width, height, this);
 
       _backgroundFrame.parent.bitmap = _blendRenderTexture.graphic.bitmap;
       _backgroundFrame.frame.set(0, 0, this.width, this.height);
-      _backgroundFrame.uv.set(0, 0, 1, 1);
 
       var clampedScale:Float = Math.max(1, Lib.current.stage.window.scale);
+
+      var glGate:Dynamic = Lib.current.stage.context3D.gl;
+      var drain:Int = 0;
+      while (glGate.getError() != 0 && drain < 20) drain++;
 
       _backgroundRenderTexture.init(Std.int(this.width * clampedScale), Std.int(this.height * clampedScale));
       _backgroundRenderTexture.drawToCamera((camera, matrix) ->
@@ -198,16 +188,21 @@ class FunkinCamera extends PsychCamera
       _backgroundRenderTexture.render();
 
 
+      var glErr:Int = glGate.getError();
+      var glErr2:Int = glGate.getError();
+
       _dbgCount++;
-      if (!_dbgAlerted && _dbgCount > 400)
+      if (_dbgCount % 240 == 200 && _dbgCount < 960)
       {
-        _dbgAlerted = true;
-        var uv:String = '' + _backgroundFrame.uv.left + ',' + _backgroundFrame.uv.top + ',' + _backgroundFrame.uv.right + ',' + _backgroundFrame.uv.bottom;
-        var info:String = 'uv=' + uv + ' bw=' + _backgroundFrame.parent.width + ' bh=' + _backgroundFrame.parent.height + ' w=' + this.width + ' h=' + this.height
-          + ' scale=' + clampedScale + '\n' + _blendShader.debugInfo();
+        var inSrc:Dynamic = Reflect.field(active.data, 'sourceSwag');
+        var inBg:Dynamic = Reflect.field(active.data, 'backgroundSwag');
+        var inBmp:Dynamic = Reflect.field(active.data, 'bitmap');
+        var info:String = 'stage=' + stage + ' dbg=' + dbgMode + ' mode=' + modeId + ' glErr=' + glErr + '/' + glErr2 + ' src=' + Reflect.field(inSrc, 'index')
+          + ' bg=' + Reflect.field(inBg, 'index') + ' bmp=' + Reflect.field(inBmp, 'index') + ' prog=' + (active.glProgram != null) + ' w=' + this.width + ' h='
+          + this.height + ' sc=' + clampedScale + '\n' + active.debugInfo();
         try
         {
-          Lib.application.window.alert(info, 'UV');
+          Lib.application.window.alert(info, 'GL');
         }
         catch (e)
         {
