@@ -72,7 +72,6 @@ class FunkinCamera extends PsychCamera
   var _dbgCount:Int = 0;
   var _dbgAlerted:Bool = false;
   var _dbgFrame:FlxFrame;
-  var _dbgMatrix:FlxMatrix;
 
   public function new(id:String = 'unknown', x:Float = 0, y:Float = 0, width:Int = 0, height:Int = 0, zoom:Float = 0)
   {
