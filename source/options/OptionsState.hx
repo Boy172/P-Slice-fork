@@ -3,7 +3,6 @@ package options;
 import mikolka.funkin.custom.mobile.MobileScaleMode;
 import mikolka.vslice.components.FunkinBackButton;
 import mikolka.vslice.components.TouchPadHider;
-import mikolka.vslice.components.TouchPointerPlugin;
 import mikolka.vslice.components.VSliceBoldText;
 import mikolka.vslice.components.crash.UserErrorSubstate;
 import backend.StageData;
@@ -21,8 +20,6 @@ class OptionsState extends MusicBeatState
 		'P-Slice Options',
 		'V-Slice Options',
 		'Editors',
-		#if (TOUCH_CONTROLS_ALLOWED || mobile) 'Hide Touch Buttons', #end
-		#if (TOUCH_CONTROLS_ALLOWED || mobile) 'Hide Touch Indicator', #end
 		#if TRANSLATIONS_ALLOWED  'Language', #end
 		#if (TOUCH_CONTROLS_ALLOWED || mobile)'Mobile Options' #end
 	];
@@ -49,20 +46,8 @@ class OptionsState extends MusicBeatState
 	static inline var FOLLOW_LERP:Float = 0.085;
 	static inline var MIN_SCROLL_Y:Float = -75;
 
-	static inline var TOUCH_TOGGLE:String = 'Hide Touch Buttons';
-	static inline var POINTER_TOGGLE:String = 'Hide Touch Indicator';
-
-	function touchButtonsHidden():Bool
-	{
-		return TouchPadHider.hidden;
-	}
-
 	function itemLabel(option:String):String
 	{
-		if (option == TOUCH_TOGGLE && touchButtonsHidden())
-			return Language.getPhrase('options_Show Touch Buttons', 'Show Touch Buttons');
-		if (option == POINTER_TOGGLE && !TouchPointerPlugin.isSavedEnabled())
-			return Language.getPhrase('options_Show Touch Indicator', 'Show Touch Indicator');
 		return Language.getPhrase('options_$option', option);
 	}
 
@@ -71,52 +56,7 @@ class OptionsState extends MusicBeatState
 		item.screenCenter(X);
 	}
 
-	function toggleTouchButtons()
-	{
-		TouchPadHider.hidden = !TouchPadHider.hidden;
-
-		for (num => option in options)
-		{
-			if (option != TOUCH_TOGGLE)
-				continue;
-			var item:VSliceBoldText = grpOptions.members[num];
-			item.text = itemLabel(option);
-			centerItem(item);
-		}
-
-		FlxG.sound.play(Paths.sound('scrollMenu'));
-	}
-
-	function toggleTouchIndicator()
-	{
-		TouchPointerPlugin.initialize();
-		TouchPointerPlugin.toggle();
-
-		for (num => option in options)
-		{
-			if (option != POINTER_TOGGLE)
-				continue;
-			var item:VSliceBoldText = grpOptions.members[num];
-			item.text = itemLabel(option);
-			centerItem(item);
-		}
-
-		FlxG.sound.play(Paths.sound('scrollMenu'));
-	}
-
 	function openSelectedSubstate(label:String) {
-		if (label == POINTER_TOGGLE)
-		{
-			toggleTouchIndicator();
-			return;
-		}
-
-		if (label == TOUCH_TOGGLE)
-		{
-			toggleTouchButtons();
-			return;
-		}
-
 		if (label == 'Editors')
 		{
 			if (onPlayState)
