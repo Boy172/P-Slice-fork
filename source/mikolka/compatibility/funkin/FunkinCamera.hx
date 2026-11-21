@@ -68,6 +68,8 @@ class FunkinCamera extends PsychCamera
   var _backgroundRenderTexture:RenderTexture;
   var _cameraTexture:FixedBitmapData;
   var _cameraMatrix:FlxMatrix;
+  var _dbgFrame:FlxFrame;
+  var _dbgMatrix:FlxMatrix;
 
   public function new(id:String = 'unknown', x:Float = 0, y:Float = 0, width:Int = 0, height:Int = 0, zoom:Float = 0)
   {
@@ -174,7 +176,32 @@ class FunkinCamera extends PsychCamera
       _cameraMatrix.scale(1 / (this.scaleX * clampedScale), 1 / (this.scaleY * clampedScale));
       _cameraMatrix.translate(((width - width / this.scaleX) * 0.5), ((height - height / this.scaleY) * 0.5));
 
-      super.drawPixels(_backgroundRenderTexture.graphic.imageFrame.frame, null, _cameraMatrix, null, null, smoothing, null);
+      var stage:Int = Std.int(Lib.getTimer() / 6000) % 4;
+
+      if (stage == 0)
+      {
+        super.drawPixels(_backgroundRenderTexture.graphic.imageFrame.frame, null, _cameraMatrix, null, null, smoothing, null);
+      }
+      else
+      {
+        if (_dbgFrame == null)
+        {
+          _dbgFrame = new FlxFrame(new FlxGraphic('', null));
+          _dbgFrame.frame = new FlxRect();
+          _dbgMatrix = new FlxMatrix();
+        }
+
+        _dbgFrame.frame.set(0, 0, this.width, this.height);
+        if (stage == 1) _dbgFrame.parent.bitmap = _cameraTexture;
+        else if (stage == 2) _dbgFrame.parent.bitmap = _blendRenderTexture.graphic.bitmap;
+        else _dbgFrame.parent.bitmap = _backgroundRenderTexture.graphic.bitmap;
+
+        _dbgMatrix.identity();
+        _dbgMatrix.scale(1 / this.scaleX, 1 / this.scaleY);
+        _dbgMatrix.translate(((width - width / this.scaleX) * 0.5), ((height - height / this.scaleY) * 0.5));
+
+        super.drawPixels(_dbgFrame, null, _dbgMatrix, null, null, smoothing, null);
+      }
     }
     else
     {
