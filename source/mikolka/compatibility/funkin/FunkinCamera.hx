@@ -68,6 +68,9 @@ class FunkinCamera extends PsychCamera
   var _backgroundRenderTexture:RenderTexture;
   var _cameraTexture:FixedBitmapData;
   var _cameraMatrix:FlxMatrix;
+  var _dbgMatrix:FlxMatrix;
+  var _dbgCount:Int = 0;
+  var _dbgAlerted:Bool = false;
   var _dbgFrame:FlxFrame;
   var _dbgMatrix:FlxMatrix;
 
@@ -154,7 +157,9 @@ class FunkinCamera extends PsychCamera
       _blendShader.sourceSwag = _blendRenderTexture.graphic.bitmap;
       _blendShader.backgroundSwag = _cameraTexture;
 
+      var stage:Int = Std.int(Lib.getTimer() / 6000) % 4;
       _blendShader.blendSwag = blend;
+      _blendShader.setInt('debugOut', 0);
       _blendShader.setInt('debugOut', Std.int(Lib.getTimer() / 5000) % 8);
       _blendShader.updateViewInfo(width, height, this);
 
@@ -167,7 +172,7 @@ class FunkinCamera extends PsychCamera
       {
         camera.zoom = this.zoom;
         matrix.scale(clampedScale, clampedScale);
-        camera.drawPixels(_backgroundFrame, null, matrix, canvas.transform.colorTransform, null, false, _blendShader);
+        camera.drawPixels(_backgroundFrame, null, matrix, canvas.transform.colorTransform, null, false, stage == 3 ? null : _blendShader);
       });
 
       _backgroundRenderTexture.render();
@@ -180,7 +185,36 @@ class FunkinCamera extends PsychCamera
 
       if (stage == 0)
       {
+        _dbgCount++;
+      if (!_dbgAlerted && _dbgCount > 300)
+      {
+        _dbgAlerted = true;
+        var info:String = 'prog=' + (_blendShader.glProgram != null) + ' src=' + (Reflect.field(_blendShader.data, 'sourceSwag') != null) + ' bg='
+          + (Reflect.field(_blendShader.data, 'backgroundSwag') != null) + ' mode=' + (Reflect.field(_blendShader.data, 'blendMode') != null) + ' dbg='
+          + (Reflect.field(_blendShader.data, 'debugOut') != null) + ' pre=' + (Reflect.field(_blendShader.data, 'premultiplyAlpha') != null) + '\n'
+          + _blendShader.debugInfo();
+        try
+        {
+          Lib.application.window.alert(info, 'Shader');
+        }
+        catch (e)
+        {
+        }
+      }
+
+      if (stage == 1 || stage == 2)
+      {
+        if (_dbgMatrix == null) _dbgMatrix = new FlxMatrix();
+        _dbgMatrix.identity();
+        _dbgMatrix.scale(1 / this.scaleX, 1 / this.scaleY);
+        _dbgMatrix.translate(((width - width / this.scaleX) * 0.5), ((height - height / this.scaleY) * 0.5));
+        _blendShader.setInt('debugOut', stage == 2 ? 4 : 0);
+        super.drawPixels(_backgroundFrame, null, _dbgMatrix, null, null, smoothing, _blendShader);
+      }
+      else
+      {
         super.drawPixels(_backgroundRenderTexture.graphic.imageFrame.frame, null, _cameraMatrix, null, null, smoothing, null);
+      }
       }
       else
       {
