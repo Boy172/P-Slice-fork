@@ -812,7 +812,7 @@ class FreeplayState extends MusicBeatSubstate
 		addTouchPadCamera();
 		hideTouchBack();
 
-		backButton = new FunkinBackButton(FlxG.width - 230 - MobileScaleMode.gameCutoutSize.x / 2, FlxG.height - 200, () -> { backRequested = true; }, 1.0);
+		backButton = new FunkinBackButton(FlxG.width, FlxG.height - 200, () -> { backRequested = true; }, 0.3);
 		backButton.playSound = false;
 		backButton.cameras = [funnyCam];
 		exitMovers.set([backButton], {
@@ -820,6 +820,7 @@ class FreeplayState extends MusicBeatSubstate
 			speed: 0.3
 		});
 		add(backButton);
+		FlxTween.tween(backButton, {x: FlxG.width - 230}, 0.5, {ease: FlxEase.expoOut});
 		if (prepForNewRank)
 		{
 			final lastAlpha:Float = touchPad.alpha;
