@@ -339,14 +339,14 @@ void main()
 }
 ";
 
-  static function build(mode:Int):String
+  static function build(mode:Int, dbg:Int):String
   {
     var text:String = SOURCE.split('uniform int blendMode;').join('const int blendMode = ' + mode + ';');
-    return text.split('uniform int debugOut;').join('const int debugOut = 0;');
+    return text.split('uniform int debugOut;').join('const int debugOut = ' + dbg + ';');
   }
 
-  public function new(mode:Int)
+  public function new(mode:Int, dbg:Int)
   {
-    super(build(mode));
+    super(build(mode, dbg));
   }
 }
