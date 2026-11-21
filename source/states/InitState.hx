@@ -7,6 +7,10 @@ import flixel.input.keyboard.FlxKey;
 import mikolka.vslice.ui.disclaimer.TextWarnings.FlashingState;
 import mikolka.vslice.ui.disclaimer.TextWarnings.OutdatedState;
 import mikolka.vslice.components.ScreenshotPlugin;
+#if (TOUCH_CONTROLS_ALLOWED || mobile)
+import mikolka.vslice.components.TouchPadHider;
+import mikolka.vslice.components.TouchPointerPlugin;
+#end
 
 #if android
 import mikolka.vslice.ui.disclaimer.WarningState;
@@ -76,6 +80,10 @@ class InitState extends MusicBeatState
 		trace("Init plugins:");
 		//* FIRST INIT! iNITIALISE IMPORTED PLUGINS
 		ScreenshotPlugin.initialize();
+		#if (TOUCH_CONTROLS_ALLOWED || mobile)
+		TouchPadHider.initialize();
+		TouchPointerPlugin.initialize();
+		#end
 		#if android
 		//* This is only for the 3.3 version
 		var path = Path.join([lime.system.System.applicationStorageDirectory,backend.CoolUtil.getSavePath(),"funkin.sol"]);
