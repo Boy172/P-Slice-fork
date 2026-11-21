@@ -1,43 +1,48 @@
+
 package mikolka.compatibility.funkin;
 
 import animate.internal.RenderTexture;
-import flash.geom.ColorTransform;
 import backend.PsychCamera;
-import flixel.FlxG;
+import flash.geom.ColorTransform;
 import flixel.FlxCamera;
+import flixel.FlxG;
 import flixel.graphics.FlxGraphic;
 import flixel.graphics.frames.FlxFrame;
+import flixel.graphics.tile.FlxDrawQuadsItem;
+import flixel.graphics.tile.FlxDrawTrianglesItem;
 import flixel.math.FlxMatrix;
 import flixel.math.FlxRect;
 import flixel.system.FlxAssets.FlxShader;
 import funkin.graphics.framebuffer.FixedBitmapData;
-import funkin.graphics.shaders.RuntimeSceneBlendShader;
+import funkin.graphics.shaders.RuntimeCustomBlendShader;
 import funkin.graphics.shaders.RuntimePostEffectShader;
-import openfl.display.OpenGLRenderer;
 import openfl.Lib;
 import openfl.display.BitmapData;
 import openfl.display.BlendMode;
-import flixel.graphics.tile.FlxDrawQuadsItem;
-import flixel.graphics.tile.FlxDrawTrianglesItem;
+import openfl.display.OpenGLRenderer;
 
 using funkin.graphics.framebuffer.BitmapDataUtil;
 
-typedef BlendSlot =
-{
-  var cam:FixedBitmapData;
-  var blend:RenderTexture;
-  var frame:FlxFrame;
-  var shaders:Map<Int, RuntimeSceneBlendShader>;
-}
-
-@:access(openfl.display.DisplayObject) @:access(openfl.display.BitmapData) @:access(openfl.display3D.Context3D) @:access(openfl.display3D.textures.TextureBase) @:access(flixel.graphics.FlxGraphic) @:access(flixel.graphics.frames.FlxFrame) @:access(openfl.display.OpenGLRenderer) @:access(openfl.geom.ColorTransform)
+@:access(openfl.display.DisplayObject)
+@:access(openfl.display.BitmapData)
+@:access(openfl.display3D.Context3D)
+@:access(openfl.display3D.textures.TextureBase)
+@:access(flixel.graphics.FlxGraphic)
+@:access(flixel.graphics.frames.FlxFrame)
+@:access(openfl.display.OpenGLRenderer)
+@:access(openfl.geom.ColorTransform)
 class FunkinCamera extends PsychCamera
 {
-    public static var hasKhronosExtension(get, never):Bool;
+  public static var hasKhronosExtension(get, never):Bool;
 
-  static inline function get_hasKhronosExtension():Bool
+  static function get_hasKhronosExtension():Bool
   {
+    #if FORCE_BLEND_SHADER
     return false;
+    #else
+    @:privateAccess
+    return OpenGLRenderer.__complexBlendsSupported ?? false;
+    #end
   }
 
   static var coherentBlendsSupported(get, never):Bool;
@@ -48,10 +53,12 @@ class FunkinCamera extends PsychCamera
     return OpenGLRenderer.__coherentBlendsSupported ?? false;
   }
 
-    static final KHR_BLEND_MODES:Array<BlendMode> = [
+  static final KHR_BLEND_MODES:Array<BlendMode> = [
     DARKEN,
     HARDLIGHT,
-    #if !desktop LIGHTEN, #end
+    #if !desktop
+    LIGHTEN,
+    #end
     OVERLAY,
     DIFFERENCE,
     COLORDODGE,
@@ -64,16 +71,19 @@ class FunkinCamera extends PsychCamera
     LUMINOSITY
   ];
 
-    static final SHADER_REQUIRED_BLEND_MODES:Array<BlendMode> = [INVERT];
+  static final SHADER_REQUIRED_BLEND_MODES:Array<BlendMode> = [
+    INVERT
+  ];
 
-    public var id:String;
+  public var id:String;
+  public var crossCameraBlending:Bool = false;
 
-    public var crossCameraBlending:Bool;
-
-  var _slots:Array<BlendSlot>;
-  var _slot:Int = 0;
-  var _slotTick:Float = -1;
-  var _blendMatrix:FlxMatrix;
+  var _blendShader:RuntimeCustomBlendShader;
+  var _backgroundFrame:FlxFrame;
+  var _blendRenderTexture:RenderTexture;
+  var _backgroundRenderTexture:RenderTexture;
+  var _cameraTexture:FixedBitmapData;
+  var _cameraMatrix:FlxMatrix;
 
   public function new(id:String = 'unknown', x:Float = 0, y:Float = 0, width:Int = 0, height:Int = 0, zoom:Float = 0)
   {
@@ -81,124 +91,169 @@ class FunkinCamera extends PsychCamera
 
     this.id = id;
 
-    _slots = [];
-    _blendMatrix = new FlxMatrix();
+    _backgroundFrame = new FlxFrame(new FlxGraphic('', null));
+    _backgroundFrame.frame = new FlxRect();
 
-    crossCameraBlending = false;
+    _cameraMatrix = new FlxMatrix();
   }
 
-  function getSlot(index:Int):BlendSlot
+  function ensureBlendResources():Void
   {
-    while (_slots.length <= index)
-    {
-      var cam:FixedBitmapData = FixedBitmapData.create(this.width, this.height);
-      var graphic:FlxGraphic = new FlxGraphic('', null);
-      graphic.bitmap = cam;
-      var slotFrame:FlxFrame = new FlxFrame(graphic);
-      slotFrame.frame = new FlxRect(0, 0, this.width, this.height);
-      _slots.push({
-        cam: cam,
-        blend: new RenderTexture(this.width, this.height),
-        frame: slotFrame,
-        shaders: new Map()
-      });
-    }
+    if (_blendShader != null) return;
 
-    return _slots[index];
+    _blendShader = new RuntimeCustomBlendShader();
+
+    _backgroundRenderTexture = new RenderTexture(this.width, this.height);
+    _blendRenderTexture = new RenderTexture(this.width, this.height);
+
+    _cameraTexture = FixedBitmapData.create(this.width, this.height);
   }
 
-  override function drawPixels(?frame:FlxFrame, ?pixels:BitmapData, matrix:FlxMatrix, ?transform:ColorTransform, ?blend:BlendMode, ?smoothing:Bool = false,
-      ?shader:FlxShader):Void
+  override function drawPixels(
+    ?frame:FlxFrame,
+    ?pixels:BitmapData,
+    matrix:FlxMatrix,
+    ?transform:ColorTransform,
+    ?blend:BlendMode,
+    ?smoothing:Bool = false,
+    ?shader:FlxShader
+  ):Void
   {
-    var shouldUseShader:Bool = ((!hasKhronosExtension && KHR_BLEND_MODES.contains(blend)) || SHADER_REQUIRED_BLEND_MODES.contains(blend))
+    var shouldUseShader:Bool =
+      ((!hasKhronosExtension && KHR_BLEND_MODES.contains(blend))
+      || SHADER_REQUIRED_BLEND_MODES.contains(blend))
       && !RuntimePostEffectShader.compileFailed;
 
-    if (shouldUseShader)
+    if (!shouldUseShader)
     {
-      if (FlxG.game.ticks != _slotTick)
+      super.drawPixels(frame, pixels, matrix, transform, blend, smoothing, shader);
+      return;
+    }
+
+    ensureBlendResources();
+
+    if (crossCameraBlending)
+    {
+      var camerasUnderneath:Array<FlxCamera> = FlxG.cameras.list.copy();
+
+      var currentIndex:Int = FlxG.cameras.list.indexOf(this);
+
+      for (i in camerasUnderneath.length - 1...-1)
       {
-        _slotTick = FlxG.game.ticks;
-        _slot = 0;
-      }
-
-      var slot:BlendSlot = getSlot(_slot < 3 ? _slot : 3);
-      _slot++;
-
-      if (crossCameraBlending)
-      {
-        var camerasUnderneath:Array<FlxCamera> = FlxG.cameras.list.copy();
-
-        for (i in camerasUnderneath.length - 1...-1)
+        if (i > currentIndex)
         {
-          if (i > FlxG.cameras.list.indexOf(this))
-          {
-            camerasUnderneath.remove(camerasUnderneath[i]);
-          }
-        }
-
-        slot.cam.drawCameraScreens(camerasUnderneath);
-
-        for (camera in camerasUnderneath)
-        {
-          camera.clearDrawStack();
-          camera.canvas.graphics.clear();
+          camerasUnderneath.remove(camerasUnderneath[i]);
         }
       }
-      else
+
+      _cameraTexture.drawCameraScreens(camerasUnderneath);
+
+      for (camera in camerasUnderneath)
       {
-        slot.cam.drawCameraScreen(this);
+        camera.clearDrawStack();
+        camera.canvas.graphics.clear();
       }
-
-      this.clearDrawStack();
-      this.canvas.graphics.clear();
-
-      slot.blend.init(this.width, this.height);
-      slot.blend.drawToCamera((camera, frameMatrix) ->
-      {
-        var pivotX:Float = width / 2;
-        var pivotY:Float = height / 2;
-
-        frameMatrix.copyFrom(matrix);
-        frameMatrix.translate(-pivotX, -pivotY);
-        frameMatrix.scale(this.scaleX, this.scaleY);
-        frameMatrix.translate(pivotX, pivotY);
-        camera.drawPixels(frame, pixels, frameMatrix, transform, null, smoothing, shader);
-      });
-      slot.blend.render();
-
-      var modeId:Int = cast blend;
-      var blendShader:RuntimeSceneBlendShader = slot.shaders.get(modeId);
-      if (blendShader == null)
-      {
-        blendShader = new RuntimeSceneBlendShader(modeId);
-        slot.shaders.set(modeId, blendShader);
-      }
-      blendShader.sourceSwag = slot.blend.graphic.bitmap;
-      blendShader.updateViewInfo(width, height, this);
-
-      _blendMatrix.identity();
-      _blendMatrix.scale(1 / this.scaleX, 1 / this.scaleY);
-      _blendMatrix.translate(((width - width / this.scaleX) * 0.5), ((height - height / this.scaleY) * 0.5));
-
-      super.drawPixels(slot.frame, null, _blendMatrix, null, null, smoothing, blendShader);
     }
     else
     {
-      super.drawPixels(frame, pixels, matrix, transform, blend, smoothing, shader);
+      _cameraTexture.drawCameraScreen(this);
     }
+
+    _backgroundFrame.frame.set(0, 0, this.width, this.height);
+
+    clearDrawStack();
+    canvas.graphics.clear();
+
+    _blendRenderTexture.init(this.width, this.height);
+
+    _blendRenderTexture.drawToCamera((camera, frameMatrix) ->
+    {
+      var pivotX:Float = width / 2;
+      var pivotY:Float = height / 2;
+
+      frameMatrix.copyFrom(matrix);
+      frameMatrix.translate(-pivotX, -pivotY);
+      frameMatrix.scale(scaleX, scaleY);
+      frameMatrix.translate(pivotX, pivotY);
+
+      camera.drawPixels(frame, pixels, frameMatrix, transform, null, smoothing, shader);
+    });
+
+    _blendRenderTexture.render();
+
+    _blendShader.sourceSwag = _blendRenderTexture.graphic.bitmap;
+    _blendShader.backgroundSwag = _cameraTexture;
+    _blendShader.blendSwag = blend;
+    _blendShader.updateViewInfo(width, height, this);
+
+    _backgroundFrame.parent.bitmap = _blendRenderTexture.graphic.bitmap;
+
+    var clampedScale:Float = Math.max(1, Lib.current.stage.window.scale);
+
+    _backgroundRenderTexture.init(
+      Std.int(width * clampedScale),
+      Std.int(height * clampedScale)
+    );
+
+    _backgroundRenderTexture.drawToCamera((camera, frameMatrix) ->
+    {
+      camera.zoom = zoom;
+      frameMatrix.scale(clampedScale, clampedScale);
+
+      camera.drawPixels(
+        _backgroundFrame,
+        null,
+        frameMatrix,
+        canvas.transform.colorTransform,
+        null,
+        false,
+        _blendShader
+      );
+    });
+
+    _backgroundRenderTexture.render();
+
+    _cameraMatrix.identity();
+    _cameraMatrix.scale(
+      1 / (scaleX * clampedScale),
+      1 / (scaleY * clampedScale)
+    );
+
+    _cameraMatrix.translate(
+      (width - width / scaleX) * 0.5,
+      (height - height / scaleY) * 0.5
+    );
+
+    super.drawPixels(
+      _backgroundRenderTexture.graphic.imageFrame.frame,
+      null,
+      _cameraMatrix,
+      null,
+      null,
+      smoothing,
+      null
+    );
   }
 
-  override function startQuadBatch(graphic:FlxGraphic, colored:Bool, hasColorOffsets:Bool = false, ?blend:BlendMode, smooth:Bool = false,
-      ?shader:FlxShader):FlxDrawQuadsItem
+  override function startQuadBatch(
+    graphic:FlxGraphic,
+    colored:Bool,
+    hasColorOffsets:Bool = false,
+    ?blend:BlendMode,
+    smooth:Bool = false,
+    ?shader:FlxShader
+  ):FlxDrawQuadsItem
   {
     if (hasKhronosExtension && !coherentBlendsSupported && KHR_BLEND_MODES.contains(blend))
     {
-      var itemToReturn = null;
+      var itemToReturn:FlxDrawQuadsItem;
 
       if (FlxCamera._storageTilesHead != null)
       {
         itemToReturn = FlxCamera._storageTilesHead;
+
         var newHead = FlxCamera._storageTilesHead.nextTyped;
+
         itemToReturn.reset();
         FlxCamera._storageTilesHead = newHead;
       }
@@ -207,27 +262,24 @@ class FunkinCamera extends PsychCamera
         itemToReturn = new FlxDrawQuadsItem();
       }
 
-      if (graphic.isDestroyed) throw 'Cannot queue ${graphic.key}. This sprite was destroyed.';
+      if (graphic.isDestroyed)
+        throw 'Cannot queue ${graphic.key}. This sprite was destroyed.';
 
       itemToReturn.graphics = graphic;
       itemToReturn.antialiasing = smooth;
       itemToReturn.colored = colored;
       itemToReturn.hasColorOffsets = hasColorOffsets;
       itemToReturn.blend = blend;
-          itemToReturn.shader = shader;
+      itemToReturn.shader = shader;
 
       itemToReturn.nextTyped = _headTiles;
       _headTiles = itemToReturn;
 
       if (_headOfDrawStack == null)
-      {
         _headOfDrawStack = itemToReturn;
-      }
 
       if (_currentDrawItem != null)
-      {
         _currentDrawItem.next = itemToReturn;
-      }
 
       _currentDrawItem = itemToReturn;
 
@@ -237,27 +289,48 @@ class FunkinCamera extends PsychCamera
     return super.startQuadBatch(graphic, colored, hasColorOffsets, blend, smooth, shader);
   }
 
-  override function startTrianglesBatch(graphic:FlxGraphic, smoothing:Bool = false, isColored:Bool = false, ?blend:BlendMode, ?hasColorOffsets:Bool,
-      ?shader:FlxShader):FlxDrawTrianglesItem
+  override function startTrianglesBatch(
+    graphic:FlxGraphic,
+    smoothing:Bool = false,
+    isColored:Bool = false,
+    ?blend:BlendMode,
+    ?hasColorOffsets:Bool,
+    ?shader:FlxShader
+  ):FlxDrawTrianglesItem
   {
-    if (hasKhronosExtension
-      && !coherentBlendsSupported
-      && KHR_BLEND_MODES.contains(blend)) return getNewDrawTrianglesItem(graphic, smoothing, isColored, blend, hasColorOffsets, shader);
+    if (hasKhronosExtension && !coherentBlendsSupported && KHR_BLEND_MODES.contains(blend))
+    {
+      return getNewDrawTrianglesItem(
+        graphic,
+        smoothing,
+        isColored,
+        blend,
+        hasColorOffsets,
+        shader
+      );
+    }
 
-    return super.startTrianglesBatch(graphic, smoothing, isColored, blend, hasColorOffsets, shader);
+    return super.startTrianglesBatch(
+      graphic,
+      smoothing,
+      isColored,
+      blend,
+      hasColorOffsets,
+      shader
+    );
   }
 
   override function destroy():Void
   {
     super.destroy();
 
-    if (_slots != null)
-    {
-      for (slot in _slots)
-      {
-        slot.blend.destroy();
-        slot.cam.dispose();
-      }
-    }
+    if (_blendRenderTexture != null)
+      _blendRenderTexture.destroy();
+
+    if (_backgroundRenderTexture != null)
+      _backgroundRenderTexture.destroy();
+
+    if (_cameraTexture != null)
+      _cameraTexture.dispose();
   }
 }
