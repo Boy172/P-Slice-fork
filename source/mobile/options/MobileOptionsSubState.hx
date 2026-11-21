@@ -4,6 +4,8 @@ package mobile.options;
 
 import options.BaseOptionsMenu;
 import options.Option;
+import mikolka.vslice.components.TouchPadHider;
+import mikolka.vslice.components.TouchPointerPlugin;
 
 class MobileOptionsSubState extends BaseOptionsMenu
 {
@@ -36,6 +38,30 @@ class MobileOptionsSubState extends BaseOptionsMenu
 		{
 			touchPad.alpha = curOption.getValue();
 			ClientPrefs.toggleVolumeKeys();
+		};
+		addOption(option);
+		#end
+
+		#if (TOUCH_CONTROLS_ALLOWED || mobile)
+		option = new Option('Hide Touch Buttons', 'If checked, the on-screen touch buttons will be hidden in menus.\n(Not applied during gameplay or in the editors)',
+			'dynamicColors', BOOL);
+		option.defaultValue = false;
+		option.getValue = function():Dynamic return TouchPadHider.hidden;
+		option.setValue = function(value:Dynamic):Dynamic
+		{
+			TouchPadHider.hidden = value == true;
+			return value;
+		};
+		addOption(option);
+
+		option = new Option('Hide Touch Indicator', 'If checked, the dot that appears where you touch the screen will be hidden.', 'dynamicColors', BOOL);
+		option.defaultValue = false;
+		option.getValue = function():Dynamic return !TouchPointerPlugin.isSavedEnabled();
+		option.setValue = function(value:Dynamic):Dynamic
+		{
+			TouchPointerPlugin.initialize();
+			if ((value == true) == TouchPointerPlugin.isSavedEnabled()) TouchPointerPlugin.toggle();
+			return value;
 		};
 		addOption(option);
 		#end
