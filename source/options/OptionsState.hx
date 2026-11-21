@@ -162,7 +162,7 @@ class OptionsState extends MusicBeatState
 		add(scroll);
 		add(tapZone);
 
-		backButton = new FunkinBackButton(FlxG.width - 230 - MobileScaleMode.gameCutoutSize.x / 2, FlxG.height - 200, () -> goBack(false), 1.0);
+		backButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, () -> goBack(false), 1.0);
 		backButton.cameras = [funnyCam];
 		add(backButton);
 		#end
