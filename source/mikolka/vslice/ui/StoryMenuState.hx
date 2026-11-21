@@ -251,7 +251,7 @@ class StoryMenuState extends MusicBeatState
 		add(button);
 
 		hideTouchBack();
-		backButton = new FunkinBackButton(FlxG.width - 230 - MobileScaleMode.gameCutoutSize.x / 2, FlxG.height - 200, goBackToMenu, 1.0);
+		backButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 170, goBackToMenu, 0.7);
 		add(backButton);
 		#end
 
