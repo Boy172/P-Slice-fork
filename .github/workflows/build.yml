@@ -70,7 +70,7 @@ jobs:
             echo "patched $f"
           done
           for f in .haxelib/flixel/git/flixel/graphics/tile/FlxDrawQuadsItem.hx .haxelib/flixel/git/flixel/graphics/tile/FlxDrawTrianglesItem.hx; do
-            sed -i 's/setParameterValue(shader\.premultiplyAlpha, !shader\.bitmap\.input\.readable/setParameterValue(shader.premultiplyAlpha, shader.bitmap.input != null \&\& !shader.bitmap.input.readable/' "$f"
+            sed -i 's/setParameterValue(shader\.premultiplyAlpha, !shader\.bitmap\.input\.readable/if (shader.premultiplyAlpha != null) setParameterValue(shader.premultiplyAlpha, shader.bitmap.input != null \&\& !shader.bitmap.input.readable/' "$f"
             grep -n "premultiplyAlpha," "$f"
           done
 
