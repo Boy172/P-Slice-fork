@@ -148,7 +148,7 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		add(button);
 
 		setBackTouchButton(false);
-		backButton = new FunkinBackButton(FlxG.width - 230 - MobileScaleMode.gameCutoutSize.x / 2, FlxG.height - 200, () -> closeMenu(false), 1.0);
+		backButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, () -> closeMenu(false), 1.0);
 		add(backButton);
 		#end
 	}
