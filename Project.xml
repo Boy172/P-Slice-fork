@@ -24,7 +24,7 @@
 	<app preloader="mikolka.vslice.FunkinPreloader" />
 	<set name="SWF_VERSION" value="11.8" />
 	<define name="lime-funkin" />
-	<haxedef name="FORCE_BLEND_SHADER" if="android" />
+	
 
 	<define name="MODS_ALLOWED" if="desktop || mobile" />
 
