@@ -11,7 +11,9 @@ import flixel.math.FlxMatrix;
 import flixel.math.FlxRect;
 import flixel.system.FlxAssets.FlxShader;
 import funkin.graphics.framebuffer.FixedBitmapData;
+import flixel.addons.display.FlxRuntimeShader;
 import funkin.graphics.shaders.RuntimeBakedBlendShader;
+import funkin.graphics.shaders.RuntimeSceneBlendShader;
 import funkin.graphics.shaders.RuntimeCustomBlendShader;
 import funkin.graphics.shaders.RuntimePostEffectShader;
 import openfl.display.OpenGLRenderer;
@@ -69,9 +71,12 @@ class FunkinCamera extends PsychCamera
   var _backgroundRenderTexture:RenderTexture;
   var _cameraTexture:FixedBitmapData;
   var _cameraMatrix:FlxMatrix;
-  var _baked:Map<String, RuntimeBakedBlendShader>;
+  var _baked:Map<Int, RuntimeSceneBlendShader>;
+  var _red:Map<Int, RuntimeBakedBlendShader>;
+  var _plain:FlxRuntimeShader;
+  var _post:RuntimePostEffectShader;
   var _dbgCount:Int = 0;
-  var _dbgAlerted:Bool = false;
+  var _dbgMatrix:FlxMatrix;
 
   public function new(id:String = 'unknown', x:Float = 0, y:Float = 0, width:Int = 0, height:Int = 0, zoom:Float = 0)
   {
@@ -84,6 +89,8 @@ class FunkinCamera extends PsychCamera
 
     _cameraMatrix = new FlxMatrix();
     _baked = new Map();
+    _red = new Map();
+    _dbgMatrix = new FlxMatrix();
 
     crossCameraBlending = false;
   }
@@ -155,27 +162,51 @@ class FunkinCamera extends PsychCamera
       _blendRenderTexture.render();
 
       var modeId:Int = cast blend;
-      var stage:Int = Std.int(_dbgCount / 240) % 4;
-      var dbgMode:Int = [0, 4, 2, 1][stage];
-      var key:String = modeId + '_' + dbgMode;
-      var active:RuntimeBakedBlendShader = _baked.get(key);
-      if (active == null)
-      {
-        active = new RuntimeBakedBlendShader(modeId, dbgMode);
-        _baked.set(key, active);
-      }
-      active.sourceSwag = _blendRenderTexture.graphic.bitmap;
-      active.backgroundSwag = _cameraTexture;
-      active.updateViewInfo(width, height, this);
+      var stage:Int = Std.int(_dbgCount / 240) % 5;
+      var trivial:String = '#pragma header\nvoid main()\n{\n  gl_FragColor = flixel_texture2D(bitmap, openfl_TextureCoordv);\n}\n';
+      var active:FlxRuntimeShader = null;
 
-      _backgroundFrame.parent.bitmap = _blendRenderTexture.graphic.bitmap;
+      if (stage == 0 || stage == 4)
+      {
+        if (_plain == null) _plain = new FlxRuntimeShader(trivial, null);
+        active = _plain;
+      }
+      else if (stage == 1)
+      {
+        if (_post == null) _post = new RuntimePostEffectShader(trivial);
+        _post.updateViewInfo(width, height, this);
+        active = _post;
+      }
+      else if (stage == 2)
+      {
+        var red:RuntimeBakedBlendShader = _red.get(modeId);
+        if (red == null)
+        {
+          red = new RuntimeBakedBlendShader(modeId, 4);
+          _red.set(modeId, red);
+        }
+        red.sourceSwag = _blendRenderTexture.graphic.bitmap;
+        red.backgroundSwag = _cameraTexture;
+        red.updateViewInfo(width, height, this);
+        active = red;
+      }
+      else
+      {
+        var scene:RuntimeSceneBlendShader = _baked.get(modeId);
+        if (scene == null)
+        {
+          scene = new RuntimeSceneBlendShader(modeId);
+          _baked.set(modeId, scene);
+        }
+        scene.sourceSwag = _blendRenderTexture.graphic.bitmap;
+        scene.updateViewInfo(width, height, this);
+        active = scene;
+      }
+
+      _backgroundFrame.parent.bitmap = _cameraTexture;
       _backgroundFrame.frame.set(0, 0, this.width, this.height);
 
       var clampedScale:Float = Math.max(1, Lib.current.stage.window.scale);
-
-      var glGate:Dynamic = Lib.current.stage.context3D.gl;
-      var drain:Int = 0;
-      while (glGate.getError() != 0 && drain < 20) drain++;
 
       _backgroundRenderTexture.init(Std.int(this.width * clampedScale), Std.int(this.height * clampedScale));
       _backgroundRenderTexture.drawToCamera((camera, matrix) ->
@@ -188,21 +219,13 @@ class FunkinCamera extends PsychCamera
       _backgroundRenderTexture.render();
 
 
-      var glErr:Int = glGate.getError();
-      var glErr2:Int = glGate.getError();
-
       _dbgCount++;
-      if (_dbgCount % 240 == 200 && _dbgCount < 960)
+      if (_dbgCount % 240 == 1 && _dbgCount < 1200)
       {
-        var inSrc:Dynamic = Reflect.field(active.data, 'sourceSwag');
-        var inBg:Dynamic = Reflect.field(active.data, 'backgroundSwag');
-        var inBmp:Dynamic = Reflect.field(active.data, 'bitmap');
-        var info:String = 'stage=' + stage + ' dbg=' + dbgMode + ' mode=' + modeId + ' glErr=' + glErr + '/' + glErr2 + ' src=' + Reflect.field(inSrc, 'index')
-          + ' bg=' + Reflect.field(inBg, 'index') + ' bmp=' + Reflect.field(inBmp, 'index') + ' prog=' + (active.glProgram != null) + ' w=' + this.width + ' h='
-          + this.height + ' sc=' + clampedScale + '\n' + active.debugInfo();
+        var names:Array<String> = ['0 FlxRuntimeShader simple', '1 PostEffect simple', '2 rojo sin variables', '3 plan B mezcla', '4 simple directo en camara'];
         try
         {
-          Lib.application.window.alert(info, 'GL');
+          Lib.application.window.alert('Etapa ' + names[stage] + ' compileFailed=' + RuntimePostEffectShader.compileFailed, 'Etapa');
         }
         catch (e)
         {
@@ -213,7 +236,17 @@ class FunkinCamera extends PsychCamera
       _cameraMatrix.scale(1 / (this.scaleX * clampedScale), 1 / (this.scaleY * clampedScale));
       _cameraMatrix.translate(((width - width / this.scaleX) * 0.5), ((height - height / this.scaleY) * 0.5));
 
-      super.drawPixels(_backgroundRenderTexture.graphic.imageFrame.frame, null, _cameraMatrix, null, null, smoothing, null);
+      if (stage == 4)
+      {
+        _dbgMatrix.identity();
+        _dbgMatrix.scale(1 / this.scaleX, 1 / this.scaleY);
+        _dbgMatrix.translate(((width - width / this.scaleX) * 0.5), ((height - height / this.scaleY) * 0.5));
+        super.drawPixels(_backgroundFrame, null, _dbgMatrix, null, null, smoothing, active);
+      }
+      else
+      {
+        super.drawPixels(_backgroundRenderTexture.graphic.imageFrame.frame, null, _cameraMatrix, null, null, smoothing, null);
+      }
     }
     else
     {
