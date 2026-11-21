@@ -29,12 +29,7 @@ class FunkinCamera extends PsychCamera
 
   static inline function get_hasKhronosExtension():Bool
   {
-    #if FORCE_BLEND_SHADER
     return false;
-    #else
-    @:privateAccess
-    return OpenGLRenderer.__complexBlendsSupported ?? false;
-    #end
   }
 
   static var coherentBlendsSupported(get, never):Bool;
@@ -158,6 +153,7 @@ class FunkinCamera extends PsychCamera
       _blendShader.backgroundSwag = _cameraTexture;
 
       _blendShader.blendSwag = blend;
+      _blendShader.setInt('debugOut', Std.int(Lib.getTimer() / 5000) % 8);
       _blendShader.updateViewInfo(width, height, this);
 
       _backgroundFrame.parent.bitmap = _blendRenderTexture.graphic.bitmap;
