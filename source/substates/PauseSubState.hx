@@ -4,6 +4,7 @@ import mikolka.funkin.custom.mobile.MobileScaleMode;
 #if TOUCH_CONTROLS_ALLOWED
 import mobile.objects.TouchZone;
 import mobile.objects.ScrollableObject;
+import mikolka.vslice.components.SwipeValueInput;
 #end
 import mikolka.vslice.freeplay.FreeplayState;
 import backend.WeekData;
@@ -30,6 +31,10 @@ class PauseSubState extends MusicBeatSubstate
 	var difficultyChoices = [];
 	var curSelected:Int = 0;
 	var curSelectedPartial:Float = 0;
+
+	#if TOUCH_CONTROLS_ALLOWED
+	var skipSwipe:SwipeValueInput = new SwipeValueInput();
+	#end
 
 	var pauseMusic:FlxSound;
 	var practiceText:FlxText;
@@ -199,8 +204,7 @@ class PauseSubState extends MusicBeatSubstate
 		cameras = [FlxG.cameras.list[FlxG.cameras.list.length - 1]];
 
 		#if TOUCH_CONTROLS_ALLOWED
-		addTouchPad(menuItems.contains('Skip Time') ? 'LEFT_FULL' : 'UP_DOWN', 'A');
-		addTouchPadCamera();
+		skipSwipe.stepPixels = 30;
 
 		var button = new TouchZone(85, 300, 1000, 100, FlxColor.PURPLE);
 		button.cameras = cameras;
@@ -257,6 +261,19 @@ class PauseSubState extends MusicBeatSubstate
 		}
 
 		updateSkipTextStuff();
+
+		#if TOUCH_CONTROLS_ALLOWED
+		skipSwipe.enabled = menuItems[curSelected] == 'Skip Time';
+		skipSwipe.update(elapsed);
+		var swipeLeftP:Bool = skipSwipe.leftP;
+		var swipeRightP:Bool = skipSwipe.rightP;
+		var swipeHeld:Bool = skipSwipe.left || skipSwipe.right;
+		#else
+		var swipeLeftP:Bool = false;
+		var swipeRightP:Bool = false;
+		var swipeHeld:Bool = false;
+		#end
+
 		if (controls.UI_UP_P)
 		{
 			FlxG.sound.play(Paths.sound('scrollMenu'), 0.4);
@@ -273,13 +290,13 @@ class PauseSubState extends MusicBeatSubstate
 		switch (daSelected)
 		{
 			case 'Skip Time':
-				if (controls.UI_LEFT_P)
+				if (controls.UI_LEFT_P || swipeLeftP)
 				{
 					FlxG.sound.play(Paths.sound('scrollMenu'), 0.4);
 					curTime -= 1000;
 					holdTime = 0;
 				}
-				if (controls.UI_RIGHT_P)
+				if (controls.UI_RIGHT_P || swipeRightP)
 				{
 					FlxG.sound.play(Paths.sound('scrollMenu'), 0.4);
 					curTime += 1000;
@@ -288,10 +305,10 @@ class PauseSubState extends MusicBeatSubstate
 				if (controls.ACCEPT)
 					onAccept(daSelected);
 
-				if (controls.UI_LEFT || controls.UI_RIGHT)
+				if (controls.UI_LEFT || controls.UI_RIGHT || swipeHeld)
 				{
 					holdTime += elapsed;
-					if (holdTime > 0.5)
+					if (holdTime > 0.5 && (controls.UI_LEFT || controls.UI_RIGHT))
 					{
 						curTime += 45000 * elapsed * (controls.UI_LEFT ? -1 : 1);
 					}
@@ -307,13 +324,6 @@ class PauseSubState extends MusicBeatSubstate
 					onAccept(daSelected);
 		}
 
-		#if TOUCH_CONTROLS_ALLOWED
-		if (touchPad == null) // sometimes it dosent add the tpad, hopefully this fixes it
-		{
-			addTouchPad(PlayState.chartingMode ? 'LEFT_FULL' : 'UP_DOWN', 'A');
-			addTouchPadCamera();
-		}
-		#end
 	}
 
 	function onAccept(selectedOption:String)
