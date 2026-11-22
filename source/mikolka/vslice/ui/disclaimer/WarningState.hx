@@ -5,10 +5,16 @@ import flixel.FlxSubState;
 
 import flixel.effects.FlxFlicker;
 import lime.app.Application;
+import mikolka.vslice.components.FunkinBackButton;
 
 class WarningState extends MusicBeatState
 {
 	public var leftState:Bool = false;
+
+	#if TOUCH_CONTROLS_ALLOWED
+	var backButton:FunkinBackButton;
+	var backRequested:Bool = false;
+	#end
 
 	var warnText:FlxText;
 	var text:String;
@@ -35,7 +41,8 @@ class WarningState extends MusicBeatState
 		warnText.screenCenter(Y);
 		add(warnText);
 		#if TOUCH_CONTROLS_ALLOWED
-		addTouchPad('NONE', 'A_B');
+		backButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, () -> backRequested = true, 0.3);
+		add(backButton);
 		#end
 	}
 
@@ -43,7 +50,12 @@ class WarningState extends MusicBeatState
 	{
 		if(!leftState) {
 			var back:Bool = controls.BACK;
-			if (controls.ACCEPT || back) {
+			var accept:Bool = controls.ACCEPT;
+			#if TOUCH_CONTROLS_ALLOWED
+			if (backRequested) back = true;
+			if (TouchUtil.justPressed && !TouchUtil.overlaps(backButton)) accept = true;
+			#end
+			if (accept || back) {
 				leftState = true;
 				FlxTransitionableState.skipNextTransIn = true;
 				FlxTransitionableState.skipNextTransOut = true;
