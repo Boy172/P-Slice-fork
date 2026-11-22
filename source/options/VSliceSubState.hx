@@ -40,6 +40,12 @@ class VSliceSubState extends BaseOptionsMenu {
 			'vsliceSpecialCards',
 			BOOL);
 		addOption(option);
+
+		var option:Option = new Option('Subtitles',
+			'If enabled, shows subtitles during songs that include them',
+			'vsliceSubtitles',
+			BOOL);
+		addOption(option);
         super();
     }
 }
