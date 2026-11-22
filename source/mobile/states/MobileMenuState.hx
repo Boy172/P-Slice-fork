@@ -12,6 +12,7 @@ import mobile.objects.grid.*;
 #if !LEGACY_PSYCH
 #if MODS_ALLOWED
 import states.ModsMenuState;
+import mikolka.vslice.ui.mods.ModSelectState;
 #end
 import states.AchievementsMenuState;
 import states.CreditsState;
@@ -77,7 +78,7 @@ class MobileMenuState extends FlxBasic {
 		grid.makeButton('mods', 0, () ->
 		{
 			FlxG.mouse.visible = false;
-			MusicBeatState.switchState(new ModsMenuState());
+			MusicBeatState.switchState(new ModSelectState());
 		});
 		#end
 		#if ACHIEVEMENTS_ALLOWED
