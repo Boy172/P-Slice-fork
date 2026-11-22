@@ -6,6 +6,7 @@ import backend.PsychCamera;
 import mikolka.compatibility.VsliceOptions;
 import mikolka.stages.EventLoader;
 import mikolka.vslice.StickerSubState;
+import mikolka.vslice.components.Subtitles;
 import mikolka.vslice.freeplay.FreeplayState;
 import backend.Highscore;
 import backend.StageData;
@@ -205,6 +206,8 @@ class PlayState extends MusicBeatState
 	public var camGame:FlxCamera;
 	public var camOther:FlxCamera;
 	public var luaTpadCam:FlxCamera;
+	public var camSubtitles:FlxCamera;
+	public var subtitles:Subtitles;
 	public var cameraSpeed:Float = 1;
 
 	public var songScore:Int = 0;
@@ -331,7 +334,14 @@ class PlayState extends MusicBeatState
 		camOther.bgColor.alpha = 0;
 		luaTpadCam.bgColor.alpha = 0;
 
+		if (ClientPrefs.data.vsliceSubtitles)
+		{
+			camSubtitles = new PsychCamera();
+			camSubtitles.bgColor.alpha = 0;
+		}
+
 		FlxG.cameras.add(camHUD, false);
+		if (camSubtitles != null) FlxG.cameras.add(camSubtitles, false);
 		FlxG.cameras.add(camOther, false);
 		FlxG.cameras.add(luaTpadCam, false);
 
@@ -597,6 +607,13 @@ class PlayState extends MusicBeatState
 		uiGroup.cameras = [camHUD];
 		noteGroup.cameras = [camHUD];
 		comboGroup.cameras = [camHUD];
+
+		if (camSubtitles != null)
+		{
+			subtitles = new Subtitles(0, 139, ClientPrefs.data.downScroll ? SubtitlesAlignment.SUBTITLES_TOP : SubtitlesAlignment.SUBTITLES_BOTTOM);
+			subtitles.cameras = [camSubtitles];
+			add(subtitles);
+		}
 
 		startingSong = true;
 
@@ -1398,6 +1415,7 @@ class PlayState extends MusicBeatState
 		FlxG.sound.playMusic(inst._sound, 1, false);
 		#if FLX_PITCH FlxG.sound.music.pitch = playbackRate; #end
 		FlxG.sound.music.onComplete = finishSong.bind();
+		if (subtitles != null) subtitles.assignSubtitles(songName, FlxG.sound.music);
 		vocals.play();
 		opponentVocals.play();
 
