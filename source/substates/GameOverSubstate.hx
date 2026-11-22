@@ -10,12 +10,19 @@ import flixel.math.FlxPoint;
 
 
 import mikolka.vslice.StickerSubState;
+import mikolka.vslice.components.FunkinBackButton;
 
 class GameOverSubstate extends MusicBeatSubstate
 {
 	public var boyfriend:Character;
 	public var onCoolDeath:Void -> Void;
 	var camFollow:FlxObject;
+
+	#if TOUCH_CONTROLS_ALLOWED
+	var backButton:FunkinBackButton;
+	var backCam:FlxCamera;
+	var backRequested:Bool = false;
+	#end
 
 	var stagePostfix:String = "";
 
@@ -94,8 +101,13 @@ class GameOverSubstate extends MusicBeatSubstate
 		FlxG.sound.music.loadEmbedded(Paths.music(loopSoundName), true);
 
 		#if TOUCH_CONTROLS_ALLOWED
-		addTouchPad('NONE', 'B');
-		addTouchPadCamera();
+		backCam = new FlxCamera();
+		backCam.bgColor.alpha = 0;
+		FlxG.cameras.add(backCam, false);
+
+		backButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, () -> backRequested = true, 0.3);
+		backButton.cameras = [backCam];
+		add(backButton);
 		#end
 
 		super.create();
@@ -122,14 +134,14 @@ class GameOverSubstate extends MusicBeatSubstate
 		if(!isEnding)
 		{
 			#if TOUCH_CONTROLS_ALLOWED
-			if (controls.ACCEPT || (TouchUtil.justPressed && !touchPad.buttonB.justPressed))
+			if (controls.ACCEPT || (TouchUtil.justPressed && !TouchUtil.overlaps(backButton)))
 			#else
 			if (controls.ACCEPT)
 			#end
 			{
 				endBullshit();
 			}
-			else if (controls.BACK)
+			else if (controls.BACK #if TOUCH_CONTROLS_ALLOWED || backRequested #end)
 			{
 				#if DISCORD_ALLOWED DiscordClient.resetClientID(); #end
 				FlxG.camera.visible = false;
@@ -192,7 +204,7 @@ class GameOverSubstate extends MusicBeatSubstate
 			new FlxTimer().start(0.7, function(tmr:FlxTimer)
 			{
 				#if TOUCH_CONTROLS_ALLOWED
-				FlxTween.tween(touchPad, {alpha: 0}, 2.7, {ease: FlxEase.smootherStepOut});
+				if (backButton != null) FlxTween.tween(backButton, {alpha: 0}, 2.7, {ease: FlxEase.smootherStepOut});
 				#end
 				FlxG.camera.fade(FlxColor.BLACK, 2, false, function()
 				{
@@ -207,6 +219,13 @@ class GameOverSubstate extends MusicBeatSubstate
 	{
 		controls.isInSubstate = false;
 		instance = null;
+		#if TOUCH_CONTROLS_ALLOWED
+		if (backCam != null)
+		{
+			FlxG.cameras.remove(backCam);
+			backCam = null;
+		}
+		#end
 		super.destroy();
 	}
 }
