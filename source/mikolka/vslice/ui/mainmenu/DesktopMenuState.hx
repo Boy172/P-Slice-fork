@@ -8,6 +8,7 @@ import mikolka.vslice.ui.title.TitleState;
 #if !LEGACY_PSYCH
 #if MODS_ALLOWED
 import states.ModsMenuState;
+import mikolka.vslice.ui.mods.ModSelectState;
 #end
 import states.AchievementsMenuState;
 import states.CreditsState;
@@ -147,7 +148,7 @@ class DesktopMenuState extends FlxBasic
 
 							#if MODS_ALLOWED
 							case 'mods':
-								MusicBeatState.switchState(new ModsMenuState());
+								MusicBeatState.switchState(new ModSelectState());
 							#end
 
 							#if ACHIEVEMENTS_ALLOWED
