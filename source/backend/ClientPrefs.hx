@@ -56,6 +56,7 @@ import states.InitState;
 	public var vsliceSmoothBar:Bool = true;
 	public var loggingType:String = "None";
 	public var vsliceLegacyBar:Bool = false;
+	public var vsliceSubtitles:Bool = true;
 	public var vsliceNaughtyness:Bool = #if mobile false #else true #end;
 	public var vsliceForceNewTag:Bool = false;
 
