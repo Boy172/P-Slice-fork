@@ -2,6 +2,8 @@ package states;
 
 import mikolka.funkin.custom.mobile.MobileScaleMode;
 import objects.AttachedSprite;
+import mikolka.vslice.components.FunkinBackButton;
+import mikolka.vslice.components.ListTouch;
 
 class CreditsState extends MusicBeatState
 {
@@ -17,6 +19,11 @@ class CreditsState extends MusicBeatState
 	var descBox:AttachedSprite;
 
 	var offsetThing:Float = -75;
+
+	#if TOUCH_CONTROLS_ALLOWED
+	var listTouch:ListTouch;
+	var backButton:FunkinBackButton;
+	#end
 
 	override function create()
 	{
@@ -141,7 +148,12 @@ class CreditsState extends MusicBeatState
 		intendedColor = bg.color;
 		changeSelection();
 		#if TOUCH_CONTROLS_ALLOWED
-		addTouchPad('UP_DOWN', 'A_B');
+		backButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, goBack, 0.3);
+		add(backButton);
+
+		listTouch = new ListTouch(() -> cast grpOptions.members, d -> changeSelection(d), i -> tapItem(i));
+		listTouch.stepPixels = 50;
+		listTouch.ignore.push(backButton);
 		#end
 		super.create();
 	}
@@ -157,6 +169,10 @@ class CreditsState extends MusicBeatState
 
 		if(!quitting)
 		{
+			#if TOUCH_CONTROLS_ALLOWED
+			if (listTouch != null && creditsStuff.length > 1) listTouch.update(elapsed);
+			#end
+
 			if(creditsStuff.length > 1)
 			{
 				var shiftMult:Int = 1;
@@ -189,15 +205,8 @@ class CreditsState extends MusicBeatState
 				}
 			}
 
-			if(controls.ACCEPT && (creditsStuff[curSelected][3] == null || creditsStuff[curSelected][3].length > 4)) {
-				CoolUtil.browserLoad(creditsStuff[curSelected][3]);
-			}
-			if (controls.BACK)
-			{
-				FlxG.sound.play(Paths.sound('cancelMenu'));
-				MusicBeatState.switchState(new MainMenuState());
-				quitting = true;
-			}
+			if(controls.ACCEPT) openLink();
+			if (controls.BACK) goBack();
 		}
 		
 		for (item in grpOptions.members)
@@ -218,6 +227,28 @@ class CreditsState extends MusicBeatState
 			}
 		}
 		super.update(elapsed);
+	}
+
+	function openLink()
+	{
+		if(creditsStuff[curSelected][3] == null || creditsStuff[curSelected][3].length > 4)
+			CoolUtil.browserLoad(creditsStuff[curSelected][3]);
+	}
+
+	function goBack()
+	{
+		if (quitting) return;
+		FlxG.sound.play(Paths.sound('cancelMenu'));
+		MusicBeatState.switchState(new MainMenuState());
+		quitting = true;
+	}
+
+	function tapItem(index:Int)
+	{
+		if (quitting || index < 0 || index >= creditsStuff.length || unselectableCheck(index)) return;
+
+		if (index == curSelected) openLink();
+		else changeSelection(index - curSelected);
 	}
 
 	var moveTween:FlxTween = null;
