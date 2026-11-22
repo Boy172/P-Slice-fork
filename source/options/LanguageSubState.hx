@@ -1,6 +1,8 @@
 package options;
 
 import openfl.utils.Assets;
+import mikolka.vslice.components.FunkinBackButton;
+import mikolka.vslice.components.ListTouch;
 
 class LanguageSubState extends MusicBeatSubstate
 {
@@ -9,6 +11,13 @@ class LanguageSubState extends MusicBeatSubstate
 	var languages:Array<String> = [];
 	var displayLanguages:Map<String, String> = [];
 	var curSelected:Int = 0;
+
+	#if TOUCH_CONTROLS_ALLOWED
+	var listTouch:ListTouch;
+	var backButton:FunkinBackButton;
+	var backCam:FlxCamera;
+	#end
+
 	public function new()
 	{
 		controls.isInSubstate = true;
@@ -92,7 +101,17 @@ class LanguageSubState extends MusicBeatSubstate
 		changeSelected();
 
 		#if TOUCH_CONTROLS_ALLOWED
-        addTouchPad('LEFT_FULL', 'A_B');
+		backCam = new FlxCamera();
+		backCam.bgColor.alpha = 0;
+		FlxG.cameras.add(backCam, false);
+
+		backButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, goBack, 0.3);
+		backButton.cameras = [backCam];
+		add(backButton);
+
+		listTouch = new ListTouch(() -> cast grpLanguages.members, d -> changeSelected(d), i -> tapLanguage(i));
+		listTouch.stepPixels = 70;
+		listTouch.ignore.push(backButton);
 		#end
 	}
 
@@ -100,6 +119,10 @@ class LanguageSubState extends MusicBeatSubstate
 	override function update(elapsed:Float)
 	{
 		super.update(elapsed);
+
+		#if TOUCH_CONTROLS_ALLOWED
+		if (listTouch != null) listTouch.update(elapsed);
+		#end
 
 		var mult:Int = (FlxG.keys.pressed.SHIFT) ? 4 : 1;
 		if(controls.UI_UP_P)
@@ -109,28 +132,47 @@ class LanguageSubState extends MusicBeatSubstate
 		if(FlxG.mouse.wheel != 0)
 			changeSelected(FlxG.mouse.wheel * mult);
 
-		if(controls.BACK)
-		{
-			if(changedLanguage)
-			{
-				FlxTransitionableState.skipNextTransIn = true;
-				FlxTransitionableState.skipNextTransOut = true;
-				MusicBeatState.resetState();
-			}
-			else close();
-			controls.isInSubstate = false;
-			FlxG.sound.play(Paths.sound('cancelMenu'));
-		}
+		if(controls.BACK) goBack();
 
-		if(controls.ACCEPT)
+		if(controls.ACCEPT) applyLanguage();
+	}
+
+	function goBack()
+	{
+		#if TOUCH_CONTROLS_ALLOWED
+		if (backCam != null)
 		{
-			FlxG.sound.play(Paths.sound('confirmMenu'), 0.6);
-			ClientPrefs.data.language = languages[curSelected];
-			//trace(ClientPrefs.data.language);
-			ClientPrefs.saveSettings();
-			Language.reloadPhrases();
-			changedLanguage = true;
+			FlxG.cameras.remove(backCam);
+			backCam = null;
 		}
+		#end
+
+		if(changedLanguage)
+		{
+			FlxTransitionableState.skipNextTransIn = true;
+			FlxTransitionableState.skipNextTransOut = true;
+			MusicBeatState.resetState();
+		}
+		else close();
+		controls.isInSubstate = false;
+		FlxG.sound.play(Paths.sound('cancelMenu'));
+	}
+
+	function applyLanguage()
+	{
+		FlxG.sound.play(Paths.sound('confirmMenu'), 0.6);
+		ClientPrefs.data.language = languages[curSelected];
+		ClientPrefs.saveSettings();
+		Language.reloadPhrases();
+		changedLanguage = true;
+	}
+
+	function tapLanguage(index:Int)
+	{
+		if (index < 0 || index >= languages.length) return;
+
+		if (index == curSelected) applyLanguage();
+		else changeSelected(index - curSelected);
 	}
 
 	function changeSelected(change:Int = 0)
