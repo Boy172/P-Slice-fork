@@ -5,6 +5,7 @@ import mikolka.vslice.freeplay.FreeplayState;
 import mikolka.vslice.ui.title.TitleState;
 import mikolka.funkin.custom.mobile.MobileScaleMode;
 import mobile.objects.GridButtons;
+import mikolka.vslice.components.FunkinBackButton;
 import flixel.FlxBasic;
 import mikolka.compatibility.VsliceOptions;
 import mobile.objects.grid.*;
@@ -26,6 +27,9 @@ class MobileMenuState extends FlxBasic {
 	
     var host:MainMenuState;
 	var grid:GridButtons;
+	#if TOUCH_CONTROLS_ALLOWED
+	var backButton:FunkinBackButton;
+	#end
     public function new(host:MainMenuState) {
         super();
         this.host = host;
@@ -105,13 +109,21 @@ class MobileMenuState extends FlxBasic {
 		optionsBtn.setPosition((MobileScaleMode.gameCutoutSize.x/4)+35, FlxG.height - 200);
 
         #if TOUCH_CONTROLS_ALLOWED
-		host.addTouchPad('NONE', 'B_C');
+		backButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, goToTitle, 1.0);
+		host.add(backButton);
 		#end
 
 		if(!host.controls.mobileC) {
 			FlxG.mouse.visible = true;
 			grid.selectButton();
 		}
+    }
+
+    function goToTitle() {
+        if (selectedSomethin) return;
+        selectedSomethin = true;
+        FlxG.sound.play(Paths.sound('cancelMenu'));
+        MusicBeatState.switchState(new TitleState());
     }
 
     override function update(elapsed:Float) {
@@ -130,18 +142,13 @@ class MobileMenuState extends FlxBasic {
 			if (controls.UI_RIGHT_P)
 				grid.changeSelection(1, 0);
 
-			if (controls.BACK)
-			{
-				selectedSomethin = true;
-				FlxG.sound.play(Paths.sound('cancelMenu'));
-				MusicBeatState.switchState(new TitleState());
-			}
+			if (controls.BACK) goToTitle();
 
 			if (controls.ACCEPT) {
 				selectedSomethin = true;
 				grid.confirmCurrentButton();
 			}
-			if (#if TOUCH_CONTROLS_ALLOWED host.touchPad.buttonC.justPressed || #end#if LEGACY_PSYCH FlxG.keys.anyJustPressed(ClientPrefs.keyBinds.get('debug_1')
+			if (#if LEGACY_PSYCH FlxG.keys.anyJustPressed(ClientPrefs.keyBinds.get('debug_1')
 				.filter(s -> s != -1)) #else controls.justPressed('debug_1') #end)
 			{
 				selectedSomethin = true;
