@@ -3,6 +3,8 @@ package states;
 import flixel.FlxObject;
 import flixel.util.FlxSort;
 import objects.Bar;
+import mikolka.vslice.components.FunkinBackButton;
+import mikolka.vslice.components.ListTouch;
 
 #if ACHIEVEMENTS_ALLOWED
 class AchievementsMenuState extends MusicBeatState
@@ -19,6 +21,14 @@ class AchievementsMenuState extends MusicBeatState
 	var camFollow:FlxObject;
 
 	var MAX_PER_ROW:Int = 4;
+
+	#if TOUCH_CONTROLS_ALLOWED
+	var listTouch:ListTouch;
+	var backButton:FunkinBackButton;
+	var touchX:Int = 0;
+	var touchY:Int = 0;
+	var resetRequested:Bool = false;
+	#end
 
 	override function create()
 	{
@@ -123,7 +133,14 @@ class AchievementsMenuState extends MusicBeatState
 		_changeSelection();
 
 		#if TOUCH_CONTROLS_ALLOWED
-		addTouchPad('LEFT_FULL', 'B_C');
+		backButton = new FunkinBackButton(FlxG.width - 230, FlxG.height - 200, goBack, 0.3);
+		add(backButton);
+
+		listTouch = new ListTouch(() -> cast grpOptions.members, d -> touchY += d, i -> tapAchievement(i));
+		listTouch.onStepX = d -> touchX += d;
+		listTouch.onHoldItem = i -> holdAchievement(i);
+		listTouch.stepPixels = 90;
+		listTouch.ignore.push(backButton);
 		#end
 
 		super.create();
@@ -133,12 +150,32 @@ class AchievementsMenuState extends MusicBeatState
 	}
 
 	#if TOUCH_CONTROLS_ALLOWED
-	override function closeSubState() {
-		super.closeSubState();
-		removeTouchPad();
-		addTouchPad('LEFT_FULL', 'B_C');
+	function tapAchievement(index:Int)
+	{
+		if (goingBack || index < 0 || index >= options.length || index == curSelected) return;
+		curSelected = index;
+		_changeSelection();
+	}
+
+	function holdAchievement(index:Int)
+	{
+		if (goingBack || index < 0 || index >= options.length) return;
+		if (index != curSelected)
+		{
+			curSelected = index;
+			_changeSelection();
+		}
+		resetRequested = true;
 	}
 	#end
+
+	function goBack()
+	{
+		if (goingBack) return;
+		FlxG.sound.play(Paths.sound('cancelMenu'));
+		MusicBeatState.switchState(new MainMenuState());
+		goingBack = true;
+	}
 
 	function makeAchievement(achievement:String, data:Achievement, unlocked:Bool, mod:String = null)
 	{
@@ -162,9 +199,17 @@ class AchievementsMenuState extends MusicBeatState
 	override function update(elapsed:Float) {
 		if(!goingBack && options.length > 1)
 		{
+			#if TOUCH_CONTROLS_ALLOWED
+			if (listTouch != null) listTouch.update(elapsed);
+			#end
+
 			var add:Int = 0;
 			if (controls.UI_LEFT_P) add = -1;
 			else if (controls.UI_RIGHT_P) add = 1;
+			#if TOUCH_CONTROLS_ALLOWED
+			if (add == 0 && touchX != 0) add = touchX > 0 ? 1 : -1;
+			touchX = 0;
+			#end
 
 			if(add != 0)
 			{
@@ -188,6 +233,10 @@ class AchievementsMenuState extends MusicBeatState
 				var add:Int = 0;
 				if (controls.UI_UP_P) add = -1;
 				else if (controls.UI_DOWN_P) add = 1;
+				#if TOUCH_CONTROLS_ALLOWED
+				if (add == 0 && touchY != 0) add = touchY > 0 ? 1 : -1;
+				touchY = 0;
+				#end
 
 				if(add != 0)
 				{
@@ -211,9 +260,10 @@ class AchievementsMenuState extends MusicBeatState
 			}
 
 			#if TOUCH_CONTROLS_ALLOWED
-			if(MusicBeatState.getState().touchPad.buttonC.justPressed || controls.RESET && (options[curSelected].unlocked || options[curSelected].curProgress > 0))
+			var wantsReset:Bool = controls.RESET || resetRequested;
+			resetRequested = false;
+			if(wantsReset && (options[curSelected].unlocked || options[curSelected].curProgress > 0))
 			{
-				removeTouchPad();
 				openSubState(new ResetAchievementSubstate());
 			}
 			#else
@@ -222,11 +272,7 @@ class AchievementsMenuState extends MusicBeatState
 			#end
 		}
 
-		if (controls.BACK) {
-			FlxG.sound.play(Paths.sound('cancelMenu'));
-			MusicBeatState.switchState(new MainMenuState());
-			goingBack = true;
-		}
+		if (controls.BACK) goBack();
 		super.update(elapsed);
 	}
 
@@ -312,9 +358,6 @@ class ResetAchievementSubstate extends MusicBeatSubstate
 		add(noText);
 		updateOptions();
 
-		#if TOUCH_CONTROLS_ALLOWED
-		addTouchPad('LEFT_RIGHT', 'A');
-		#end
 	}
 
 	override function update(elapsed:Float)
@@ -329,12 +372,29 @@ class ResetAchievementSubstate extends MusicBeatSubstate
 
 		super.update(elapsed);
 
+		var touchConfirm:Bool = false;
+		#if TOUCH_CONTROLS_ALLOWED
+		if (TouchUtil.justPressed)
+		{
+			if (TouchUtil.overlaps(yesText))
+			{
+				onYes = true;
+				touchConfirm = true;
+			}
+			else if (TouchUtil.overlaps(noText))
+			{
+				onYes = false;
+				touchConfirm = true;
+			}
+		}
+		#end
+
 		if(controls.UI_LEFT_P || controls.UI_RIGHT_P) {
 			onYes = !onYes;
 			updateOptions();
 		}
 
-		if(controls.ACCEPT)
+		if(controls.ACCEPT || touchConfirm)
 		{
 			if(onYes)
 			{
