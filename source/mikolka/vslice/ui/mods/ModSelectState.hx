@@ -4,89 +4,77 @@ import backend.Mods;
 import flixel.FlxCamera;
 import flixel.FlxSprite;
 import flixel.math.FlxMath;
+import flixel.math.FlxPoint;
 import flixel.math.FlxRect;
 import flixel.text.FlxText;
-import flixel.tweens.FlxEase;
 import flixel.tweens.FlxTween;
 import flixel.util.FlxColor;
-import flixel.util.FlxTimer;
-import mikolka.compatibility.VsliceOptions;
-import mikolka.vslice.ui.mods.ModMenuList;
+import flixel.util.FlxSpriteUtil;
+import mikolka.vslice.ui.mods.ModMenuList; // ModEntry, ModMenuItem, ModMenuStyle y ModMenuList viven aquí
 import mikolka.vslice.ui.title.TitleState;
 
+/**
+ * Mod Menu estilo V-Slice 0.9.0 para P-Slice.
+ *
+ * Capas (de abajo hacia arriba):
+ *   1. cámara principal: fondo, paneles, scrollbars, personajes, chispas, textos, botones
+ *   2. una cámara por lista (recorta los items al panel)
+ *   3. topCam: item que estás arrastrando + marcador de inserción
+ *
+ * Como las listas están en cámaras propias, SIEMPRE se dibujan encima de los personajes.
+ */
 class ModSelectState extends MusicBeatState
 {
-	static inline var P_NONE:Int = 0;
-	static inline var P_BTN:Int = 1;
-	static inline var P_ITEM:Int = 2;
-	static inline var P_SCROLL:Int = 3;
-	static inline var P_DRAG:Int = 4;
+	// ===================== LAYOUT (referencia 720p) =====================
+	// Todo se centra horizontalmente en pantallas anchas (vslice-fullscreen).
+	// Si algo queda desplazado, ajusta SOLO estas constantes.
+	static inline var PANEL_W:Float = 391;
+	static inline var PANEL_H:Float = 481;
+	static inline var PANEL_Y:Float = 137;
+	static inline var PANEL_GAP:Float = 38; // entre Disabled y Enabled
+	static inline var CHAR_GAP:Float = 50; // entre Enabled y los personajes
+	static inline var CHAR_W:Float = 330; // ancho aprox. del bloque BF + GF
+	static inline var CHAR_Y:Float = 90;
+	static inline var GF_DX:Float = 170; // separación entre BF y GF
+	static inline var CHAR_NUDGE_X:Float = 0; // ajuste fino de personajes
+	static inline var CHAR_NUDGE_Y:Float = 0;
 
-	static inline var BTN_BACK:Int = 0;
-	static inline var BTN_FOLDER:Int = 1;
-	static inline var BTN_DONE:Int = 2;
+	// Nombres de imagen en images/vmods/ (ModMenuButton agrega -highlighted / -inverted solo)
+	static inline var BTN_FOLDER:String = 'open-mod-folder';
+	static inline var BTN_DONE:String = 'done';
+	// ====================================================================
 
-	static inline var SEL_DIS:Int = 0;
-	static inline var SEL_ENA:Int = 1;
-	static inline var SEL_FOLDER:Int = 2;
-	static inline var SEL_DONE:Int = 3;
-	static inline var SEL_BACK:Int = 4;
+	static inline var MODE_IDLE:Int = 0;
+	static inline var MODE_PRESS:Int = 1;
+	static inline var MODE_SCROLL:Int = 2;
+	static inline var MODE_DRAG:Int = 3;
+	static inline var HOLD_SECONDS:Float = 0.35;
 
-	var assetsOk:Bool = true;
+	static inline var BTN_BACK_ID:Int = 0;
+	static inline var BTN_FOLDER_ID:Int = 1;
+	static inline var BTN_DONE_ID:Int = 2;
 
-	var camL:FlxCamera;
-	var camR:FlxCamera;
-	var camChars:FlxCamera;
-	var camHUD:FlxCamera;
-	var camTop:FlxCamera;
+	var oy:Float = 0;
 
-	var menuBG:FlxSprite;
-	var leftBox:FlxSprite;
-	var rightBox:FlxSprite;
-	var topText:FlxSprite;
-	var dragText:FlxText;
-	var dragTextDefault:String;
+	var lists:Array<ModMenuList> = [];
+	var topCam:FlxCamera;
+	var marker:FlxSprite;
+	var subtitle:FlxText;
+	var subtitleDefault:String;
 	var messageTimer:Float = 0;
+	var emptyText:FlxText;
 
-	var disabledList:ModMenuList;
-	var enabledList:ModMenuList;
-	var flyers:Array<ModMenuItem> = [];
-
-	var backBtn:FlxAtlasSprite;
-	var backRect:Array<Float> = [0, 0, 0, 0];
+	var backArrow:FlxSprite;
 	var folderBtn:ModMenuButton;
 	var doneBtn:ModMenuButton;
 
-	var blackFlash:FlxSprite;
-	var bgWires:FlxSprite;
-	var carBattery:FlxSprite;
-	var gfWire:FlxSprite;
 	var bf:ModMenuCharacter;
 	var gf:ModMenuCharacter;
-	var fgTop:FlxAtlasSprite;
-	var fgBottom:FlxAtlasSprite;
-	var smokeBF:FlxSprite;
-	var smokeGF:FlxSprite;
-	var smokeCloud:FlxAtlasSprite;
 	var sparks:ModMenuSparks;
-
 	var ambience:ModMenuAmbience;
-	var savedMusicVolume:Float = 1;
 
-	var bfCountdown:Float = 0;
-	var gfCountdown:Float = 0;
-
-	var allowInput:Bool = true;
+	var mode:Int = MODE_IDLE;
 	var exiting:Bool = false;
-	var backWait:Float = -1;
-	var shockTimer:FlxTimer = new FlxTimer();
-	var afterFlash:Bool = false;
-	var crispyShown:Bool = false;
-	var crispyTimer:Float = 0;
-	var crispySfx:Bool = false;
-	var gfHeld:Bool = false;
-	var prevPinhead:Bool = false;
-	var finishing:Bool = false;
 
 	var ptrX:Float = 0;
 	var ptrY:Float = 0;
@@ -94,70 +82,21 @@ class ModSelectState extends MusicBeatState
 	var ptrUp:Bool = false;
 	var ptrDown:Bool = false;
 
-	var mode:Int = P_NONE;
 	var pressX:Float = 0;
 	var pressY:Float = 0;
 	var pressTime:Float = 0;
-	var pressBtn:Int = -1;
-	var pressList:ModMenuList;
-	var pressItem:ModMenuItem;
+	var pressItem:ModMenuItem = null;
+	var pressList:Int = -1;
+	var pressButton:Int = -1;
 	var scrollStart:Float = 0;
-	var dragItem:ModMenuItem;
-	var dragDX:Float = 0;
-	var dragDY:Float = 0;
 
-	var usingKeys:Bool = false;
-	var sel:Int = SEL_DIS;
-	var backFromEnabled:Bool = false;
-
-	function makeCam():FlxCamera
-	{
-		var cam:FlxCamera = new FlxCamera();
-		cam.bgColor.alpha = 0;
-		FlxG.cameras.add(cam, false);
-		return cam;
-	}
-
-	function img(px:Float, py:Float, key:String, sx:Float = 1, sy:Float = 1):FlxSprite
-	{
-		var s:FlxSprite = new FlxSprite(px, py);
-		var graph = Paths.image('vmods/$key');
-		if (graph != null) s.loadGraphic(graph);
-		else s.makeGraphic(8, 8, FlxColor.TRANSPARENT);
-		s.antialiasing = ClientPrefs.data.antialiasing;
-		s.scale.set(sx, sy);
-		s.updateHitbox();
-		return s;
-	}
-
-	function sparrow(px:Float, py:Float, key:String):FlxSprite
-	{
-		var s:FlxSprite = new FlxSprite(px, py);
-		s.frames = Paths.getSparrowAtlas('vmods/$key');
-		s.antialiasing = ClientPrefs.data.antialiasing;
-		return s;
-	}
-
-	function atlas(px:Float, py:Float, key:String, sc:Float, cam:FlxCamera):FlxAtlasSprite
-	{
-		var s:FlxAtlasSprite = new FlxAtlasSprite(px, py, 'vmods/$key');
-		s.scale.set(sc, sc);
-		s.antialiasing = ClientPrefs.data.antialiasing;
-		s.cameras = [cam];
-		return s;
-	}
-
-	function label(px:Float, py:Float, w:Float, text:String, size:Int, align:FlxTextAlign = FlxTextAlign.CENTER):FlxText
-	{
-		var t:FlxText = new FlxText(px, py, w, text, size);
-		t.setFormat(ModMenuStyle.fontPath, size, FlxColor.WHITE, align);
-		return t;
-	}
+	var dragItem:ModMenuItem = null;
+	var dragFrom:Int = 0;
+	var dragTarget:Int = -1;
+	var dragIndex:Int = 0;
 
 	override function create()
 	{
-		super.create();
-
 		persistentUpdate = false;
 
 		#if DISCORD_ALLOWED
@@ -167,242 +106,158 @@ class ModSelectState extends MusicBeatState
 		CacheSystem.clearStoredMemory();
 		CacheSystem.clearUnusedMemory();
 
+		// el layout está pensado para 720 de alto; si el juego tiene otra altura lo centramos
+		oy = (FlxG.height - 720) / 2;
+
 		#if !mobile
 		FlxG.mouse.visible = true;
 		#end
 
-		assetsOk = Paths.image('vmods/box') != null && Paths.image('vmods/bg') != null;
-		if (!assetsOk)
+		var bg:FlxSprite = new FlxSprite().loadGraphic(Paths.image('menuDesat'));
+		bg.color = 0xFF4A4166;
+		bg.antialiasing = ClientPrefs.data.antialiasing;
+		bg.setGraphicSize(Std.int(bg.width * 1.175));
+		bg.updateHitbox();
+		bg.screenCenter();
+		add(bg);
+
+		var totalW:Float = PANEL_W * 2 + PANEL_GAP + CHAR_GAP + CHAR_W;
+		var left:Float = Math.max(20, (FlxG.width - totalW) / 2);
+		var charLeft:Float = left + PANEL_W * 2 + PANEL_GAP + CHAR_GAP + CHAR_NUDGE_X;
+		var charTop:Float = CHAR_Y + oy + CHAR_NUDGE_Y;
+		var panelY:Float = PANEL_Y + oy;
+
+		// ---------- paneles + listas ----------
+		var labels:Array<String> = [
+			Language.getPhrase('mod_menu_disabled', 'DISABLED'),
+			Language.getPhrase('mod_menu_enabled', 'ENABLED')
+		];
+
+		for (i in 0...2)
 		{
-			var warn:FlxText = label(0, 0, FlxG.width, 'THIS DEVICE CANNOT LOAD THE MOD MENU TEXTURES (ASTC)\nTAP TO GO BACK', 28);
-			warn.screenCenter(Y);
-			add(warn);
-			return;
+			var px:Float = left + i * (PANEL_W + PANEL_GAP);
+
+			var panel:FlxSprite = new FlxSprite(px, panelY).makeGraphic(Std.int(PANEL_W), Std.int(PANEL_H), FlxColor.TRANSPARENT, true);
+			FlxSpriteUtil.drawRoundRect(panel, 0, 0, PANEL_W, PANEL_H, 18, 18, 0xFF1F1E24);
+			panel.alpha = 0.95;
+			add(panel);
+
+			var label:FlxText = new FlxText(px, panelY + 8, PANEL_W, labels[i], 28);
+			label.setFormat(ModMenuStyle.fontPath, 28, FlxColor.WHITE, CENTER);
+			add(label);
+
+			var cam:FlxCamera = new FlxCamera(Std.int(px), Std.int(panelY + 52), Std.int(PANEL_W), Std.int(PANEL_H - 64));
+			cam.bgColor.alpha = 0;
+			FlxG.cameras.add(cam, false);
+
+			var list:ModMenuList = new ModMenuList(new FlxRect(px, panelY, PANEL_W, PANEL_H), cam);
+			add(list.track);
+			add(list.thumb);
+			lists.push(list);
 		}
 
-		if (FlxG.sound.music != null)
+		// ---------- personajes / chispas (cámara principal, debajo de las listas) ----------
+		try
 		{
-			savedMusicVolume = FlxG.sound.music.volume;
-			FlxG.sound.music.fadeOut(0.8, 0);
+			bf = new ModMenuCharacter(charLeft, charTop, 'bf', false, FlxG.camera);
+			gf = new ModMenuCharacter(charLeft + GF_DX, charTop, 'gf', true, FlxG.camera);
+			add(bf.group);
+			add(gf.group);
+			if (bf.hasAnim('idle')) bf.play('idle', 0, true);
+			if (gf.hasAnim('idle')) gf.play('idle', 0, true);
+
+			sparks = new ModMenuSparks();
+			sparks.setPosition(charLeft, charTop);
+			add(sparks);
+		}
+		catch (e:Dynamic)
+		{
+			trace('ModSelectState: no se pudieron cargar los personajes: $e');
 		}
 
-		menuBG = img(0, 0, 'bg', 0.66, 0.67);
-		menuBG.screenCenter();
-		add(menuBG);
-
-		leftBox = img(FlxG.width * 0.047, FlxG.height * 0.19, 'box', 0.64, 0.67);
-		add(leftBox);
-		rightBox = img(leftBox.x + leftBox.width + 35, leftBox.y, 'box', 0.64, 0.67);
-		add(rightBox);
-
-		topText = img(0, FlxG.height * 0.035, 'top-text', 0.66, 0.67);
-		topText.screenCenter(X);
-		add(topText);
-
-		var big:Bool = ModMenuStyle.customFont;
-		#if mobile
-		dragTextDefault = 'TAP A MOD TO MOVE IT, OR HOLD AND DRAG IT';
-		#else
-		dragTextDefault = 'CLICK A MOD TO MOVE IT, OR DRAG IT BETWEEN THE LISTS';
-		#end
-		dragText = label(leftBox.x, FlxG.height * 0.13, leftBox.width * 2 + 35, dragTextDefault, big ? 32 : 20);
-		add(dragText);
-
-		var lrect:FlxRect = FlxRect.get(leftBox.x, leftBox.y, leftBox.width, leftBox.height);
-		var rrect:FlxRect = FlxRect.get(rightBox.x, rightBox.y, rightBox.width, rightBox.height);
-
-		camL = new FlxCamera(Std.int(lrect.x), Std.int(lrect.y + 60), Std.int(lrect.width), Std.int(lrect.height - 75));
-		camL.bgColor.alpha = 0;
-		FlxG.cameras.add(camL, false);
-		camR = new FlxCamera(Std.int(rrect.x), Std.int(rrect.y + 60), Std.int(rrect.width), Std.int(rrect.height - 75));
-		camR.bgColor.alpha = 0;
-		FlxG.cameras.add(camR, false);
-
-		camChars = makeCam();
-		camHUD = makeCam();
-		camTop = makeCam();
-
-		disabledList = new ModMenuList(lrect, camL);
-		enabledList = new ModMenuList(rrect, camR);
-
-		var titleSize:Int = big ? 32 : 24;
-		add(label(lrect.x, lrect.y + 14, lrect.width, 'DISABLED', titleSize));
-		add(label(rrect.x, rrect.y + 14, rrect.width, 'ENABLED', titleSize));
-		add(disabledList.track);
-		add(disabledList.thumb);
-		add(enabledList.track);
-		add(enabledList.thumb);
-
-		buildLists();
-		buildBackButton();
-		buildCharacters();
-		buildButtons();
-
-		ambience = new ModMenuAmbience();
-		ambience.start();
-
-		bfCountdown = FlxG.random.float(0, 1) + FlxG.random.float(0, 6);
-		gfCountdown = FlxG.random.float(0, 1) + 6 + FlxG.random.float(0, 4);
-
-		changeCharacters();
-		applySelection();
-		if (!usingKeys) deselectAll();
-	}
-
-	function buildLists():Void
-	{
+		// ---------- entradas ----------
 		var modList:ModsList = Mods.parseList();
 		Mods.loadTopMod();
-
-		var disabledEntries:Array<ModEntry> = [];
-		var enabledEntries:Array<ModEntry> = [];
 
 		for (mod in modList.all)
 		{
 			if (mod.trim().length < 1) continue;
-			var isOn:Bool = !modList.disabled.contains(mod);
-			var entry:ModEntry = new ModEntry(mod, isOn);
-			if (isOn) enabledEntries.push(entry);
-			else disabledEntries.push(entry);
+			var enabled:Bool = !modList.disabled.contains(mod);
+			var list:ModMenuList = lists[enabled ? 1 : 0];
+			var item:ModMenuItem = new ModMenuItem(new ModEntry(mod, enabled));
+			item.cameras = [list.cam];
+			add(item);
+			list.insert(item, list.items.length);
 		}
 
-		enabledEntries.push(ModEntry.base());
+		for (list in lists)
+			for (j in 0...list.items.length)
+				list.items[j].snapTo(ModMenuList.ITEM_X, j * ModMenuList.STEP);
 
-		for (entry in disabledEntries) addItem(entry, disabledList);
-		for (entry in enabledEntries) addItem(entry, enabledList);
-	}
+		// ---------- textos ----------
+		var title:FlxText = new FlxText(0, 14 + oy, FlxG.width, Language.getPhrase('mod_menu_title', 'CHOOSE YOUR MODS'), 56);
+		title.setFormat(ModMenuStyle.fontPath, 56, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, 0xFF1E1A2E);
+		title.borderSize = 3;
+		add(title);
 
-	function addItem(entry:ModEntry, list:ModMenuList):ModMenuItem
-	{
-		var item:ModMenuItem = new ModMenuItem(entry);
-		item.cameras = [list.cam];
-		add(item);
-		list.insert(item, list.items.length);
-		item.snapTo(ModMenuList.ITEM_X, (list.items.length - 1) * ModMenuList.STEP);
-		return item;
-	}
+		subtitleDefault = Language.getPhrase('mod_menu_hint', 'TAP A MOD TO MOVE IT. OR HOLD AND DRAG TO REORDER');
+		subtitle = new FlxText(0, 90 + oy, FlxG.width, subtitleDefault, 24);
+		subtitle.setFormat(ModMenuStyle.fontPath, 24, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, 0xFF1E1A2E);
+		subtitle.borderSize = 2;
+		add(subtitle);
 
-	function buildBackButton():Void
-	{
-		backBtn = atlas(leftBox.x - 50, topText.y + topText.height / 2 - 38, 'back-arrow', 0.7, FlxG.camera);
-		backBtn.playAnimation('default', true, false, true);
-		add(backBtn);
-		backRect = [leftBox.x - 70, topText.y - 10, 170, topText.height + 20];
-	}
+		// ---------- flecha de volver (misma lógica táctil que ya tenías) ----------
+		backArrow = new FlxSprite(30, 20 + oy).makeGraphic(70, 50, FlxColor.TRANSPARENT, true);
+		var points:Array<FlxPoint> = [
+			FlxPoint.get(3, 25),
+			FlxPoint.get(25, 3),
+			FlxPoint.get(25, 15),
+			FlxPoint.get(67, 15),
+			FlxPoint.get(67, 35),
+			FlxPoint.get(25, 35),
+			FlxPoint.get(25, 47)
+		];
+		FlxSpriteUtil.drawPolygon(backArrow, points, FlxColor.WHITE, {thickness: 3, color: 0xFF1E1A2E});
+		add(backArrow);
 
-	function buildCharacters():Void
-	{
-		blackFlash = new FlxSprite().makeGraphic(FlxG.width, FlxG.height, 0xFF232327);
-		blackFlash.cameras = [camChars];
-		blackFlash.visible = false;
-		add(blackFlash);
-
-		var batteryX:Float = rightBox.x + 475.6;
-		var batteryY:Float = FlxG.height * 0.11;
-
-		var bfX:Float = batteryX - 119;
-		var bfY:Float = batteryY + 50;
-		var gfX:Float = bfX - 166;
-
-		bgWires = img(batteryX + 75, batteryY + 170, 'bgwires', 0.7, 0.7);
-		bgWires.cameras = [camChars];
-		add(bgWires);
-
-		carBattery = sparrow(batteryX, batteryY, 'carbattery');
-		carBattery.animation.addByPrefix('idle', 'idle', 24);
-		carBattery.animation.play('idle');
-		carBattery.animation.pause();
-		carBattery.scale.set(0.75, 0.75);
-		carBattery.updateHitbox();
-		carBattery.cameras = [camChars];
-		add(carBattery);
-
-		gfWire = sparrow(batteryX - 117, batteryY - 18, 'gfwire');
-		gfWire.animation.addByPrefix('idle', 'idle0', 24, false);
-		gfWire.animation.addByPrefix('idle-emptychair', 'idle empty chair0', 24, false);
-		gfWire.animation.addByPrefix('shock', 'shock', 24, false);
-		gfWire.animation.play('idle');
-		gfWire.scale.set(0.7, 0.7);
-		gfWire.updateHitbox();
-		gfWire.cameras = [camChars];
-		add(gfWire);
-
-		gf = new ModMenuCharacter(gfX, bfY, 'gf', true, camChars);
-		add(gf.group);
-
-		bf = new ModMenuCharacter(bfX, bfY, 'bf', false, camChars);
-		add(bf.group);
-
-		fgBottom = atlas(bfX - 144, bfY - 90, 'foreground-wires-bottom', 0.7, camChars);
-		add(fgBottom);
-		fgTop = atlas(bfX - 144, bfY - 90, 'foreground-wires-top', 0.7, camChars);
-		add(fgTop);
-
-		smokeGF = sparrow(gfX + 70, bfY - 180, 'smoke');
-		smokeGF.animation.addByPrefix('idle', 'retry_smoke', 24);
-		smokeGF.animation.play('idle');
-		smokeGF.scale.set(0.5, 0.5);
-		smokeGF.updateHitbox();
-		smokeGF.alpha = 0.67;
-		smokeGF.visible = false;
-		smokeGF.cameras = [camChars];
-		add(smokeGF);
-
-		smokeBF = sparrow(bfX + 70, bfY - 180, 'smoke');
-		smokeBF.animation.addByPrefix('idle', 'retry_smoke', 24);
-		smokeBF.animation.play('idle', false, false, 13);
-		smokeBF.scale.set(0.5, 0.5);
-		smokeBF.updateHitbox();
-		smokeBF.alpha = 0.67;
-		smokeBF.visible = false;
-		smokeBF.cameras = [camChars];
-		add(smokeBF);
-
-		smokeCloud = atlas(batteryX - 415, -450, 'smoke-cloud', 0.75, camChars);
-		smokeCloud.visible = false;
-		add(smokeCloud);
-
-		sparks = new ModMenuSparks();
-		sparks.cameras = [camChars];
-		add(sparks);
-	}
-
-	function buildButtons():Void
-	{
+		// ---------- botones con arte ----------
+		var btnY:Float = panelY + PANEL_H + 22;
+		folderBtn = new ModMenuButton();
 		doneBtn = new ModMenuButton();
-		doneBtn.setup('done', carBattery.x - 100, FlxG.height * 0.89);
-		doneBtn.cameras = [camHUD];
+		placeButton(folderBtn, BTN_FOLDER, left + (PANEL_W * 2 + PANEL_GAP) / 2, btnY);
+		placeButton(doneBtn, BTN_DONE, charLeft + CHAR_W / 2, btnY);
+		add(folderBtn);
 		add(doneBtn);
 
-		folderBtn = new ModMenuButton();
-		folderBtn.setup('open-folder', leftBox.x + 180, FlxG.height * 0.89);
-		folderBtn.cameras = [camHUD];
-		add(folderBtn);
+		// ---------- capa superior para arrastrar ----------
+		topCam = new FlxCamera();
+		topCam.bgColor.alpha = 0;
+		FlxG.cameras.add(topCam, false);
+
+		marker = new FlxSprite().makeGraphic(ModMenuItem.WIDTH, 4, FlxColor.WHITE);
+		marker.cameras = [topCam];
+		marker.visible = false;
+		add(marker);
+
+		if (lists[0].items.length + lists[1].items.length == 0)
+		{
+			emptyText = new FlxText(0, 0, FlxG.width, Language.getPhrase('mod_menu_empty', 'NO MODS FOUND\nPUT YOUR MODS INSIDE THE MODS FOLDER'), 26);
+			emptyText.setFormat(ModMenuStyle.fontPath, 26, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, 0xFF1E1A2E);
+			emptyText.screenCenter(Y);
+			add(emptyText);
+		}
+
+		ambience = new ModMenuAmbience();
+		ambience.start();
+
+		super.create();
 	}
 
-	function countEnabledMods():Int
+	/** Coloca un botón con arte centrado en cx. Se llama setup dos veces porque el ancho solo se conoce tras cargar la imagen. */
+	function placeButton(btn:ModMenuButton, name:String, cx:Float, y:Float):Void
 	{
-		var total:Int = 0;
-		for (item in enabledList.items)
-			if (!item.entry.isBase) total++;
-		return total;
-	}
-
-	function changeCharacters():Void
-	{
-		var pinhead:Bool = countEnabledMods() > 0;
-		bf.setPinhead(pinhead);
-		gf.setPinhead(pinhead);
-
-		gfWire.visible = !gf.hasCustomWires;
-		gfWire.animation.play('idle');
-
-		var wire:String = bf.useSmallWire ? 'idle pinhead' : 'idle';
-		fgBottom.playAnimation(wire, true);
-		fgTop.playAnimation(wire, true);
-
-		bf.play('idle');
-		gf.play('idle');
+		btn.setup(name, 0, y);
+		btn.setup(name, cx - btn.frameWidth * ModMenuButton.REST_SCALE / 2, y);
 	}
 
 	function readPointer():Void
@@ -430,712 +285,325 @@ class ModSelectState extends MusicBeatState
 		#end
 	}
 
-	function buttonAt(px:Float, py:Float):Int
+	function buttonAt(x:Float, y:Float):Int
 	{
-		if (doneBtn.visible && doneBtn.hits(px, py)) return BTN_DONE;
-		if (folderBtn.visible && folderBtn.hits(px, py)) return BTN_FOLDER;
-		if (px >= backRect[0] && px <= backRect[0] + backRect[2] && py >= backRect[1] && py <= backRect[1] + backRect[3]) return BTN_BACK;
+		if (x >= backArrow.x - 10 && x <= backArrow.x + backArrow.width + 10 && y >= backArrow.y - 10 && y <= backArrow.y + backArrow.height + 10)
+			return BTN_BACK_ID;
+		if (folderBtn.hits(x, y)) return BTN_FOLDER_ID;
+		if (doneBtn.hits(x, y)) return BTN_DONE_ID;
 		return -1;
 	}
 
-	function viewListAt(px:Float, py:Float):ModMenuList
+	/** Lista cuya zona visible (donde están los items) contiene el punto. */
+	function viewAt(x:Float, y:Float):Int
 	{
-		if (disabledList.containsView(px, py)) return disabledList;
-		if (enabledList.containsView(px, py)) return enabledList;
-		return null;
+		for (i in 0...lists.length)
+			if (lists[i].containsView(x, y)) return i;
+		return -1;
 	}
 
-	function boxListAt(px:Float, py:Float):ModMenuList
+	/** Lista cuyo panel completo contiene el punto (para soltar items). */
+	function boxAt(x:Float, y:Float):Int
 	{
-		if (disabledList.containsBox(px, py)) return disabledList;
-		if (enabledList.containsBox(px, py)) return enabledList;
-		return null;
+		for (i in 0...lists.length)
+			if (lists[i].containsBox(x, y)) return i;
+		return -1;
 	}
 
-	function hasBase(list:ModMenuList):Bool
+	function setButtonSelected(id:Int, value:Bool):Void
 	{
-		return list.items.length > 0 && list.items[list.items.length - 1].entry.isBase;
-	}
-
-	function deselectAll():Void
-	{
-		disabledList.deselect();
-		enabledList.deselect();
-	}
-
-	function playTick():Void
-	{
-		FlxG.sound.play(Paths.sound('scrollMenu'), 0.4);
-	}
-
-	function say(text:String, seconds:Float = 5):Void
-	{
-		dragText.text = text;
-		messageTimer = seconds;
+		switch (id)
+		{
+			case BTN_FOLDER_ID:
+				folderBtn.setSelected(value);
+			case BTN_DONE_ID:
+				doneBtn.setSelected(value);
+		}
 	}
 
 	override function update(elapsed:Float)
 	{
-		if (!assetsOk)
-		{
-			super.update(elapsed);
-			if (FlxG.mouse.justPressed || FlxG.touches.justStarted().length > 0 || controls.BACK) cancel();
-			return;
-		}
-
 		super.update(elapsed);
 
-		ambience.update(elapsed);
-		disabledList.update(elapsed);
-		enabledList.update(elapsed);
-		updateFlyers();
-		updateBlink(elapsed);
+		if (exiting) return;
 
-		if (messageTimer > 0)
+		if (controls.BACK)
 		{
-			messageTimer -= elapsed;
-			if (messageTimer <= 0) dragText.text = dragTextDefault;
-		}
-
-		if (backWait >= 0)
-		{
-			backWait -= elapsed;
-			if (backWait < 0)
-			{
-				backWait = -1;
-				cancel();
-			}
+			cancel();
 			return;
 		}
 
-		handleInput(elapsed);
-		updateSequence(elapsed);
-	}
-
-	function updateBlink(elapsed:Float):Void
-	{
-		if (exiting || !allowInput) return;
-
-		bfCountdown -= elapsed;
-		if (bfCountdown <= 0 && bf.finished)
-		{
-			bfCountdown = FlxG.random.float(0, 1) + FlxG.random.float(0, 6);
-			bf.play('idle');
-		}
-
-		gfCountdown -= elapsed;
-		if (gfCountdown <= 0 && gf.finished)
-		{
-			gfCountdown = FlxG.random.float(0, 1) + FlxG.random.float(0, 8);
-			gf.play('idle');
-		}
-	}
-
-	function updateFlyers():Void
-	{
-		for (item in flyers.copy())
-		{
-			var dest:ModMenuList = item.owner;
-			var index:Int = dest.items.indexOf(item);
-			if (index < 0)
-			{
-				item.flying = false;
-				flyers.remove(item);
-				continue;
-			}
-
-			item.targetX = dest.slotScreenX();
-			item.targetY = dest.cam.y + index * ModMenuList.STEP + dest.scroll;
-			item.rate = 16;
-
-			if (Math.abs(item.x - item.targetX) < 3 && Math.abs(item.y - item.targetY) < 3)
-			{
-				item.flying = false;
-				item.toList(dest);
-				flyers.remove(item);
-			}
-		}
-	}
-
-	function handleInput(elapsed:Float):Void
-	{
-		readPointer();
-
-		if (!allowInput)
-		{
-			if ((ptrJust || controls.ACCEPT) && shockTimer.active && !afterFlash)
-			{
-				shockTimer.cancel();
-				afterShock();
-			}
-			return;
-		}
-
-		#if android
-		if (FlxG.android.justReleased.BACK)
-		{
-			pressBack();
-			return;
-		}
-		#end
+		if (ambience != null) ambience.update(elapsed);
 
 		#if !mobile
 		if (FlxG.mouse.wheel != 0)
 		{
-			var wheelList:ModMenuList = viewListAt(ptrX, ptrY);
-			if (wheelList != null) wheelList.scrollBy(FlxG.mouse.wheel * 60);
+			var wheelList:Int = viewAt(FlxG.mouse.viewX, FlxG.mouse.viewY);
+			if (wheelList >= 0) lists[wheelList].scrollBy(FlxG.mouse.wheel * ModMenuList.STEP);
 		}
 		#end
 
-		if (ptrJust || mode != P_NONE)
+		updatePointer(elapsed);
+
+		for (i in 0...lists.length)
 		{
-			if (ptrJust && usingKeys)
-			{
-				usingKeys = false;
-				applySelection();
-			}
-			handlePointer(elapsed);
-			return;
+			// mientras arrastras con el dedo/mouse la lista sigue el puntero sin suavizado
+			lists[i].snap = mode == MODE_SCROLL && pressList == i;
+			lists[i].update(elapsed);
 		}
 
-		handleKeys();
+		if (messageTimer > 0)
+		{
+			messageTimer -= elapsed;
+			if (messageTimer <= 0) subtitle.text = subtitleDefault;
+		}
 	}
 
-	function handlePointer(elapsed:Float):Void
+	function updatePointer(elapsed:Float):Void
 	{
-		if (ptrJust && mode == P_NONE)
-		{
-			pressX = ptrX;
-			pressY = ptrY;
-			pressTime = 0;
-			pressItem = null;
-			pressList = null;
+		readPointer();
 
-			var btn:Int = buttonAt(ptrX, ptrY);
-			if (btn >= 0)
-			{
-				mode = P_BTN;
-				pressBtn = btn;
-				setButtonPressed(btn, true);
-			}
-			else
-			{
-				var list:ModMenuList = viewListAt(ptrX, ptrY);
-				if (list != null)
-				{
-					mode = P_ITEM;
-					pressList = list;
-					pressItem = list.itemAt(ptrX, ptrY);
-					scrollStart = list.targetScroll;
-				}
-			}
-			return;
-		}
-
-		pressTime += elapsed;
-
-		var dx:Float = ptrX - pressX;
-		var dy:Float = ptrY - pressY;
+		var released:Bool = ptrUp || (mode != MODE_IDLE && !ptrDown);
 
 		switch (mode)
 		{
-			case P_BTN:
+			case MODE_IDLE:
+				if (ptrJust) beginPress();
 
-			case P_ITEM:
-				var movable:Bool = pressItem != null && !pressItem.entry.isBase;
-				if (movable && Math.abs(dx) > 18 && Math.abs(dx) > Math.abs(dy) * 0.8) startDrag(pressItem);
-				else if (Math.abs(dy) > 12)
+			case MODE_PRESS:
+				if (released)
 				{
-					mode = P_SCROLL;
-					pressList.snap = true;
+					endPress();
+					return;
 				}
-				else if (movable && pressTime >= 0.4 && ptrDown) startDrag(pressItem);
 
-			case P_SCROLL:
-				pressList.targetScroll = scrollStart + dy;
-				pressList.clamp();
+				pressTime += elapsed;
+				if (pressButton >= 0) return;
 
-			case P_DRAG:
-				dragItem.targetX = ptrX - dragDX;
-				dragItem.targetY = ptrY - dragDY;
-		}
+				var moved:Bool = Math.abs(ptrX - pressX) > 14 || Math.abs(ptrY - pressY) > 14;
+				if (moved)
+				{
+					if (pressList >= 0)
+					{
+						mode = MODE_SCROLL;
+						scrollStart = lists[pressList].targetScroll;
+						if (pressItem != null) pressItem.selected = false;
+					}
+					else mode = MODE_IDLE;
+				}
+				else if (pressItem != null && pressTime >= HOLD_SECONDS) startDrag();
 
-		if (ptrUp || (!ptrDown && mode != P_NONE))
-		{
-			switch (mode)
-			{
-				case P_BTN:
-					var over:Bool = buttonAt(ptrX, ptrY) == pressBtn;
-					setButtonPressed(pressBtn, false);
-					if (over) fireButton(pressBtn);
+			case MODE_SCROLL:
+				if (released) mode = MODE_IDLE;
+				else
+				{
+					var list:ModMenuList = lists[pressList];
+					list.targetScroll = FlxMath.bound(scrollStart + (ptrY - pressY), list.minScroll(), 0);
+				}
 
-				case P_ITEM:
-					if (pressItem != null && !pressItem.entry.isBase && pressTime < 0.4) toggle(pressItem);
-
-				case P_SCROLL:
-					pressList.snap = false;
-
-				case P_DRAG:
-					dropItem();
-			}
-
-			mode = P_NONE;
-			pressItem = null;
-			pressList = null;
-			pressBtn = -1;
+			case MODE_DRAG:
+				if (released) drop();
+				else moveDrag(elapsed);
 		}
 	}
 
-	function setButtonPressed(btn:Int, down:Bool):Void
+	function beginPress():Void
 	{
-		switch (btn)
+		pressX = ptrX;
+		pressY = ptrY;
+		pressTime = 0;
+		pressItem = null;
+		pressList = -1;
+		pressButton = buttonAt(ptrX, ptrY);
+
+		if (pressButton >= 0)
 		{
-			case BTN_BACK:
-				backBtn.playAnimation(down ? 'press hold' : 'default', true, false, !down);
-			case BTN_FOLDER:
-				folderBtn.setSelected(down);
-			case BTN_DONE:
-				doneBtn.setSelected(down);
+			setButtonSelected(pressButton, true);
+			mode = MODE_PRESS;
+			return;
+		}
+
+		var panel:Int = viewAt(ptrX, ptrY);
+		if (panel < 0) return;
+
+		pressList = panel;
+		pressItem = lists[panel].itemAt(ptrX, ptrY);
+		if (pressItem != null) pressItem.selected = true;
+		mode = MODE_PRESS;
+	}
+
+	function endPress():Void
+	{
+		mode = MODE_IDLE;
+
+		if (pressButton >= 0)
+		{
+			setButtonSelected(pressButton, false);
+			if (buttonAt(ptrX, ptrY) == pressButton) fireButton(pressButton);
+			return;
+		}
+
+		if (pressItem != null)
+		{
+			pressItem.selected = false;
+			if (pressTime < HOLD_SECONDS) toggleItem(pressItem);
 		}
 	}
 
-	function fireButton(btn:Int):Void
+	function fireButton(id:Int):Void
 	{
-		switch (btn)
+		switch (id)
 		{
-			case BTN_BACK:
-				pressBack();
-			case BTN_FOLDER:
-				playTick();
+			case BTN_BACK_ID:
+				cancel();
+			case BTN_FOLDER_ID:
 				folderBtn.playAccept(openModFolder);
-			case BTN_DONE:
-				playTick();
-				startShock();
+			case BTN_DONE_ID:
+				exiting = true;
+				doneBtn.playAccept(confirm);
 		}
 	}
 
-	function startDrag(item:ModMenuItem):Void
+	function listOf(item:ModMenuItem):Int
 	{
-		var list:ModMenuList = item.owner;
-		item.toScreen(list, camTop);
-		item.held = true;
-		item.rate = 30;
-		dragItem = item;
-		dragDX = ptrX - item.x;
-		dragDY = ptrY - item.y;
-		mode = P_DRAG;
-		playTick();
+		return lists[0].items.contains(item) ? 0 : 1;
 	}
 
-	function dropItem():Void
+	/** Toque corto: pasa el mod a la otra lista (arriba del todo). */
+	function toggleItem(item:ModMenuItem):Void
 	{
+		var from:Int = listOf(item);
+		var to:Int = 1 - from;
+		var dst:ModMenuList = lists[to];
+
+		lists[from].remove(item);
+		dst.insert(item, 0);
+		item.entry.enabled = to == 1;
+
+		item.cameras = [dst.cam];
+		dst.targetScroll = 0;
+		dst.scroll = 0;
+
+		// entra desde un poco más arriba de su slot y se desvanece
+		item.setPosition(ModMenuList.ITEM_X, -ModMenuList.STEP * 0.5);
+		item.fade = 0;
+		FlxTween.tween(item, {fade: 1}, 0.2);
+		item.flashBackground();
+
+		FlxG.sound.play(Paths.sound('scrollMenu'), 0.6);
+	}
+
+	/** Mantener pulsado: el item "vuela" con el puntero en la cámara superior. */
+	function startDrag():Void
+	{
+		mode = MODE_DRAG;
+		dragItem = pressItem;
+		dragFrom = pressList;
+		dragTarget = dragFrom;
+
+		var list:ModMenuList = lists[dragFrom];
+		dragIndex = list.items.indexOf(dragItem);
+
+		dragItem.toScreen(list, topCam);
+		dragItem.held = true;
+		dragItem.flying = true;
+		dragItem.rate = 40;
+
+		FlxG.sound.play(Paths.sound('scrollMenu'), 0.6);
+	}
+
+	function moveDrag(elapsed:Float):Void
+	{
+		dragItem.targetX = ptrX - ModMenuItem.WIDTH / 2;
+		dragItem.targetY = ptrY - ModMenuItem.ICON / 2;
+
+		var target:Int = boxAt(ptrX, ptrY);
+		dragTarget = target;
+
+		if (target < 0)
+		{
+			marker.visible = false;
+			return;
+		}
+
+		var dst:ModMenuList = lists[target];
+		var cam:FlxCamera = dst.cam;
+
+		if (ptrY < cam.y + 30) dst.scrollBy(500 * elapsed);
+		else if (ptrY > cam.y + cam.height - 30) dst.scrollBy(-500 * elapsed);
+
+		dragIndex = Std.int(FlxMath.bound(dst.indexForY(ptrY), 0, dst.items.length));
+
+		var markerY:Float = dst.slotScreenY(dragIndex) - (ModMenuList.STEP - ModMenuItem.ICON) / 2 - 2;
+		marker.visible = markerY >= cam.y - 4 && markerY <= cam.y + cam.height + 4;
+		marker.x = dst.slotScreenX();
+		marker.y = markerY;
+	}
+
+	function drop():Void
+	{
+		mode = MODE_IDLE;
+		marker.visible = false;
+
 		var item:ModMenuItem = dragItem;
 		dragItem = null;
-		if (item == null) return;
 
-		var centerX:Float = item.x + ModMenuItem.WIDTH / 2;
-		var centerY:Float = item.y + ModMenuItem.ICON / 2;
-		var src:ModMenuList = item.owner;
-		var dest:ModMenuList = boxListAt(centerX, centerY);
-		if (dest == null) dest = src;
-
-		var index:Int = dest.indexForY(centerY);
-		moveItem(item, dest, index);
-	}
-
-	function moveItem(item:ModMenuItem, dest:ModMenuList, index:Int):Void
-	{
-		var src:ModMenuList = item.owner;
-		item.toScreen(src, camTop);
-		src.remove(item);
-
-		var limit:Int = dest.items.length - (hasBase(dest) ? 1 : 0);
-		index = Std.int(FlxMath.bound(index, 0, Math.max(0, limit)));
-
-		dest.insert(item, index);
 		item.held = false;
-		item.flying = true;
-		item.selected = false;
-		item.rate = 16;
-		item.entry.enabled = dest == enabledList;
-		if (flyers.indexOf(item) < 0) flyers.push(item);
+		item.flying = false;
+		item.rate = 22;
 
-		dest.ensureVisible(index);
-		src.clamp();
-
-		if (dest != src) playTick();
-	}
-
-	function toggle(item:ModMenuItem):Void
-	{
-		if (item.entry.isBase) return;
-		var dest:ModMenuList = item.owner == enabledList ? disabledList : enabledList;
-		moveItem(item, dest, 0);
-	}
-
-	function handleKeys():Void
-	{
-		var up:Bool = controls.UI_UP_P;
-		var down:Bool = controls.UI_DOWN_P;
-		var left:Bool = controls.UI_LEFT_P;
-		var right:Bool = controls.UI_RIGHT_P;
-		var accept:Bool = controls.ACCEPT;
-		var back:Bool = controls.BACK;
-
-		if (back)
+		// soltado fuera de los paneles: vuelve a su sitio
+		if (dragTarget < 0)
 		{
-			FlxG.sound.play(Paths.sound('cancelMenu'), 0.4);
-			pressBack();
+			item.toList(lists[dragFrom]);
 			return;
 		}
 
-		if (!(up || down || left || right || accept)) return;
+		var from:Int = dragFrom;
+		var to:Int = dragTarget;
+		var src:ModMenuList = lists[from];
+		var dst:ModMenuList = lists[to];
 
-		if (!usingKeys)
+		var oldIndex:Int = src.items.indexOf(item);
+		var index:Int = dragIndex;
+
+		src.remove(item);
+		if (from == to && index > oldIndex) index--;
+		index = Std.int(FlxMath.bound(index, 0, dst.items.length));
+		dst.insert(item, index);
+		item.entry.enabled = to == 1;
+
+		// pasa de coordenadas de pantalla a las de la lista destino y se acomoda solo
+		item.toList(dst);
+
+		if (from != to || index != oldIndex)
 		{
-			usingKeys = true;
-			sel = disabledList.items.length > 0 ? SEL_DIS : SEL_ENA;
-			applySelection();
-			return;
+			item.flashBackground();
+			FlxG.sound.play(Paths.sound('scrollMenu'), 0.6);
 		}
-
-		var ctrl:Bool = FlxG.keys.pressed.CONTROL;
-		var before:Int = sel;
-
-		if (left)
-		{
-			switch (sel)
-			{
-				case SEL_DIS:
-					sel = SEL_DONE;
-				case SEL_ENA:
-					sel = disabledList.items.length > 0 ? SEL_DIS : SEL_FOLDER;
-				case SEL_FOLDER:
-					sel = SEL_ENA;
-				case SEL_DONE:
-					sel = SEL_FOLDER;
-			}
-		}
-		else if (right)
-		{
-			switch (sel)
-			{
-				case SEL_DIS:
-					sel = SEL_ENA;
-				case SEL_ENA:
-					sel = SEL_FOLDER;
-				case SEL_FOLDER:
-					sel = SEL_DONE;
-				case SEL_DONE:
-					sel = disabledList.items.length > 0 ? SEL_DIS : SEL_ENA;
-			}
-		}
-		else if (up)
-		{
-			switch (sel)
-			{
-				case SEL_DIS:
-					if (!moveSelection(disabledList, -1))
-					{
-						sel = SEL_BACK;
-						backFromEnabled = false;
-					}
-				case SEL_ENA:
-					if (ctrl) reorder(enabledList.selectedItem(), -1);
-					else if (!moveSelection(enabledList, -1))
-					{
-						sel = SEL_BACK;
-						backFromEnabled = true;
-					}
-				case SEL_FOLDER:
-					sel = disabledList.items.length > 0 ? SEL_DIS : SEL_ENA;
-				case SEL_DONE:
-					sel = SEL_ENA;
-				case SEL_BACK:
-					sel = backFromEnabled ? SEL_DONE : SEL_FOLDER;
-			}
-		}
-		else if (down)
-		{
-			switch (sel)
-			{
-				case SEL_DIS:
-					if (!moveSelection(disabledList, 1)) sel = SEL_FOLDER;
-				case SEL_ENA:
-					if (ctrl) reorder(enabledList.selectedItem(), 1);
-					else if (!moveSelection(enabledList, 1)) sel = SEL_DONE;
-				case SEL_FOLDER:
-					sel = SEL_BACK;
-					backFromEnabled = false;
-				case SEL_DONE:
-					sel = SEL_BACK;
-					backFromEnabled = true;
-				case SEL_BACK:
-					sel = backFromEnabled ? SEL_ENA : (disabledList.items.length > 0 ? SEL_DIS : SEL_ENA);
-			}
-		}
-		else if (accept)
-		{
-			switch (sel)
-			{
-				case SEL_DIS:
-					acceptList(disabledList);
-				case SEL_ENA:
-					acceptList(enabledList);
-				case SEL_FOLDER:
-					playTick();
-					folderBtn.playAccept(openModFolder);
-				case SEL_DONE:
-					playTick();
-					startShock();
-				case SEL_BACK:
-					pressBack();
-			}
-			return;
-		}
-
-		if (sel != before)
-		{
-			playTick();
-			applySelection();
-		}
-	}
-
-	function moveSelection(list:ModMenuList, delta:Int):Bool
-	{
-		var index:Int = list.selIndex + delta;
-		if (index < 0 || index >= list.items.length) return false;
-		list.select(index);
-		playTick();
-		return true;
-	}
-
-	function acceptList(list:ModMenuList):Void
-	{
-		var item:ModMenuItem = list.selectedItem();
-		if (item == null || item.entry.isBase) return;
-
-		var index:Int = list.selIndex;
-		playTick();
-		toggle(item);
-
-		if (list.items.length > 0)
-		{
-			list.select(Std.int(Math.min(index, list.items.length - 1)));
-			if (list.items.length == 1 && hasBase(list) && list == enabledList) list.select(0);
-		}
-		else
-		{
-			sel = list == disabledList ? SEL_ENA : SEL_DIS;
-			applySelection();
-		}
-	}
-
-	function reorder(item:ModMenuItem, delta:Int):Void
-	{
-		if (item == null || item.entry.isBase) return;
-		var list:ModMenuList = item.owner;
-		var index:Int = list.items.indexOf(item);
-		var target:Int = index + delta;
-		var last:Int = list.items.length - 1 - (hasBase(list) ? 1 : 0);
-		if (target < 0 || target > last) return;
-
-		list.items.splice(index, 1);
-		list.items.insert(target, item);
-		list.select(target);
-		playTick();
-	}
-
-	function applySelection():Void
-	{
-		deselectAll();
-		folderBtn.setSelected(false);
-		doneBtn.setSelected(false);
-		if (backBtn != null && !exiting) backBtn.playAnimation('default', true, false, true);
-
-		if (!usingKeys) return;
-
-		if (sel == SEL_DIS && disabledList.items.length == 0) sel = SEL_ENA;
-
-		switch (sel)
-		{
-			case SEL_DIS:
-				disabledList.select(0);
-			case SEL_ENA:
-				enabledList.select(0);
-			case SEL_FOLDER:
-				folderBtn.setSelected(true);
-			case SEL_DONE:
-				doneBtn.setSelected(true);
-			case SEL_BACK:
-				backBtn.playAnimation('highlighted', true, false, true);
-		}
-	}
-
-	function pressBack():Void
-	{
-		if (exiting) return;
-		exiting = true;
-		allowInput = false;
-		backBtn.playAnimation('confirm', true);
-		backWait = 0.5;
 	}
 
 	function openModFolder():Void
 	{
-		#if (windows || linux || mac)
+		#if (windows || linux)
 		var modFolder:String = Paths.mods();
 		if (!NativeFileSystem.exists(modFolder)) NativeFileSystem.createDirectory(modFolder);
 		CoolUtil.openFolder(modFolder);
 		#else
-		say('MODS FOLDER: ' + StorageUtil.getStorageDirectory() + '/mods', 7);
+		subtitle.text = 'MODS: ' + StorageUtil.getStorageDirectory() + '/mods';
+		messageTimer = 6;
 		#end
-	}
-
-	function startShock():Void
-	{
-		if (!allowInput) return;
-		allowInput = false;
-		mode = P_NONE;
-		prevPinhead = bf.usingPinhead;
-
-		bf.play('electrocuted', FlxG.random.int(0, 20), true);
-		gf.play('electrocuted', FlxG.random.int(0, 20), true);
-
-		carBattery.animation.resume();
-		fgBottom.playAnimation('shock', true, false, true);
-		fgTop.playAnimation('shock', true, false, true);
-
-		gfWire.visible = true;
-		gfWire.animation.play('shock');
-
-		sparks.startElectrocution();
-		doneBtn.playAccept();
-
-		shockTimer.start(81 / 24, function(_:FlxTimer)
-		{
-			afterShock();
-		});
-	}
-
-	function afterShock():Void
-	{
-		blackFlash.visible = true;
-		carBattery.visible = false;
-		gfWire.visible = false;
-		fgTop.visible = false;
-		fgBottom.visible = false;
-		bgWires.visible = false;
-		doneBtn.visible = false;
-		folderBtn.visible = false;
-
-		FlxTimer.wait(2 / 24, function()
-		{
-			blackFlash.visible = false;
-			if (VsliceOptions.FLASHBANG) FlxG.camera.flash(0xFFFFFFFF, 1 / 24);
-
-			changeCharacters();
-
-			menuBG.color = 0xFF232327;
-			FlxTween.color(menuBG, 1, 0xFF232327, FlxColor.WHITE);
-
-			doneBtn.visible = true;
-			folderBtn.visible = true;
-			carBattery.visible = true;
-			carBattery.animation.reset();
-			bgWires.visible = true;
-			fgTop.visible = true;
-			fgBottom.visible = true;
-
-			smokeCloud.visible = true;
-			smokeCloud.alpha = 1;
-			smokeCloud.anim.play('', true);
-			var cloudSound = Paths.sound('vmods/sounds/smoke-cloud');
-			if (cloudSound != null) FlxG.sound.play(cloudSound);
-			FlxTween.tween(smokeCloud, {alpha: 0}, 62 / 24, {
-				ease: FlxEase.linear,
-				onComplete: function(_:FlxTween)
-				{
-					smokeCloud.visible = false;
-				}
-			});
-
-			sparks.endElectrocution();
-
-			var crispy:Bool = !prevPinhead && !bf.usingPinhead;
-			crispyShown = false;
-
-			if (crispy && bf.hasAnim('crispy'))
-			{
-				crispyShown = true;
-				bf.play('crispy');
-			}
-			else bf.play('idle');
-
-			if (crispy && gf.hasAnim('crispy'))
-			{
-				crispyShown = true;
-				gf.play('crispy');
-			}
-			else
-			{
-				gf.play('idle');
-				gf.pause();
-				gfHeld = true;
-			}
-
-			if (crispyShown)
-			{
-				smokeBF.visible = true;
-				smokeBF.animation.play('idle', true, false, 13);
-				smokeGF.visible = true;
-				smokeGF.animation.play('idle', true);
-				fgBottom.playAnimation('end', true);
-				fgTop.playAnimation('end', true);
-			}
-
-			crispyTimer = 0;
-			afterFlash = true;
-		});
-	}
-
-	function updateSequence(elapsed:Float):Void
-	{
-		if (allowInput || !afterFlash || finishing) return;
-
-		crispyTimer += elapsed;
-
-		if (crispyShown && !crispySfx && crispyTimer >= 0.7)
-		{
-			crispySfx = true;
-			var crispySound = Paths.sound('vmods/sounds/crispy');
-			if (crispySound != null) FlxG.sound.play(crispySound);
-		}
-
-		if (gfHeld && crispyTimer >= 0.3)
-		{
-			gfHeld = false;
-			gf.resume();
-		}
-
-		if (crispyTimer >= 2.5)
-		{
-			finishing = true;
-			confirm();
-		}
 	}
 
 	function saveList():Void
 	{
 		var fileStr:String = '';
-		for (list in [enabledList, disabledList])
+		for (i in [1, 0])
 		{
-			var isOn:Bool = list == enabledList;
-			for (item in list.items)
+			for (item in lists[i].items)
 			{
-				if (item.entry.isBase) continue;
 				if (fileStr.length > 0) fileStr += '\n';
-				fileStr += item.entry.folder + '|' + (isOn ? '1' : '0');
+				fileStr += item.entry.folder + '|' + (i == 1 ? '1' : '0');
 			}
 		}
 
@@ -1153,10 +621,10 @@ class ModSelectState extends MusicBeatState
 	function leave():Void
 	{
 		exiting = true;
+		if (ambience != null) ambience.stop();
 		#if !mobile
 		FlxG.mouse.visible = false;
 		#end
-		if (ambience != null) ambience.stop();
 	}
 
 	function cancel():Void
@@ -1173,15 +641,15 @@ class ModSelectState extends MusicBeatState
 		FlxG.sound.play(Paths.sound('confirmMenu'));
 
 		var restart:Bool = false;
-		for (list in [enabledList, disabledList])
+		for (list in lists)
 			for (item in list.items)
-				if (!item.entry.isBase && item.entry.mustRestart && item.entry.enabled != item.entry.startEnabled) restart = true;
+				if (item.entry.mustRestart && item.entry.enabled != item.entry.startEnabled) restart = true;
 
 		if (restart)
 		{
 			TitleState.initialized = false;
 			TitleState.closedState = false;
-			if (FlxG.sound.music != null) FlxG.sound.music.fadeOut(0.3);
+			FlxG.sound.music.fadeOut(0.3);
 			FlxG.camera.fade(FlxColor.BLACK, 0.5, false, FlxG.resetGame, false);
 		}
 		else MusicBeatState.switchState(new MainMenuState());
@@ -1190,7 +658,6 @@ class ModSelectState extends MusicBeatState
 	override function destroy()
 	{
 		if (ambience != null) ambience.stop();
-		shockTimer.destroy();
 		super.destroy();
 	}
 }
