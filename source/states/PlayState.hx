@@ -84,7 +84,7 @@ class PlayState extends MusicBeatState
 	];
 
 	// event variables
-	private var isCameraOnForcedPos:Bool = false;
+	public var isCameraOnForcedPos:Bool = false;
 
 	public var boyfriendMap:Map<String, Character> = new Map<String, Character>();
 	public var dadMap:Map<String, Character> = new Map<String, Character>();
@@ -102,6 +102,11 @@ class PlayState extends MusicBeatState
 	public var GF_Y:Float = 130;
 
 	public var songSpeedTween:FlxTween;
+	public var scrollSpeedTween:FlxTween;
+	public var opponentSpeedScale:Float = 1;
+	var scrollSpeedTargets:Array<Float> = null;
+	public var cameraFollowTween:FlxTween;
+	public var cameraZoomTween:FlxTween;
 	public var songSpeed(default, set):Float = 1;
 	public var songSpeedType:String = "multiplicative";
 	public var noteKillOffset:Float = 350;
@@ -2172,11 +2177,11 @@ override public function update(elapsed:Float)
 // Health icon updaters
 public dynamic function updateIconsScale(elapsed:Float)
 {
-	var mult:Float = FlxMath.lerp(1, iconP1.scale.x, Math.exp(-elapsed * 9 * playbackRate));
+	var mult:Float = FlxMath.lerp(iconP1.baseScale, iconP1.scale.x, Math.exp(-elapsed * 9 * playbackRate));
 	iconP1.scale.set(mult, mult);
 	iconP1.updateHitbox();
 
-	var mult:Float = FlxMath.lerp(1, iconP2.scale.x, Math.exp(-elapsed * 9 * playbackRate));
+	var mult:Float = FlxMath.lerp(iconP2.baseScale, iconP2.scale.x, Math.exp(-elapsed * 9 * playbackRate));
 	iconP2.scale.set(mult, mult);
 	iconP2.updateHitbox();
 }
@@ -2184,8 +2189,8 @@ public dynamic function updateIconsScale(elapsed:Float)
 public dynamic function updateIconsPosition()
 {
 	var iconOffset:Int = 26;
-	iconP1.x = healthBar.barCenter + (150 * iconP1.scale.x - 150) / 2 - iconOffset;
-	iconP2.x = healthBar.barCenter - (150 * iconP2.scale.x) / 2 - iconOffset * 2;
+	iconP1.x = healthBar.barCenter + (iconP1.logicalWidth() - iconP1.restWidth) / 2 - iconOffset;
+	iconP2.x = healthBar.barCenter - iconP2.logicalWidth() / 2 - iconOffset * 2;
 }
 
 var iconsAnimations:Bool = true;
@@ -2708,6 +2713,201 @@ public function moveCameraToGirlfriend()
 }
 
 var cameraTwn:FlxTween;
+
+public function getCameraFocusPoint(char:Int):FlxPoint
+{
+	var point:FlxPoint = FlxPoint.get(0, 0);
+	switch (char)
+	{
+		case 0:
+			if (boyfriend == null)
+			{
+				point.put();
+				return null;
+			}
+			var mid:FlxPoint = boyfriend.getMidpoint();
+			point.set(mid.x - 100 - (boyfriend.cameraPosition[0] - boyfriendCameraOffset[0]), mid.y - 100 + boyfriend.cameraPosition[1] + boyfriendCameraOffset[1]);
+			mid.put();
+		case 1:
+			if (dad == null)
+			{
+				point.put();
+				return null;
+			}
+			var mid:FlxPoint = dad.getMidpoint();
+			point.set(mid.x + 150 + dad.cameraPosition[0] + opponentCameraOffset[0], mid.y - 100 + dad.cameraPosition[1] + opponentCameraOffset[1]);
+			mid.put();
+		case 2:
+			if (gf == null)
+			{
+				point.put();
+				return null;
+			}
+			var mid:FlxPoint = gf.getMidpoint();
+			point.set(mid.x + gf.cameraPosition[0] + girlfriendCameraOffset[0], mid.y + gf.cameraPosition[1] + girlfriendCameraOffset[1]);
+			mid.put();
+	}
+	return point;
+}
+
+public function resetCameraFollow(snap:Bool = true):Void
+{
+	FlxG.camera.follow(camFollow, LOCKON, 0);
+	FlxG.camera.targetOffset.set();
+	if (snap)
+		FlxG.camera.focusOn(camFollow.getPosition());
+}
+
+public function tweenCameraToPosition(x:Float = 0, y:Float = 0, duration:Float = 0, ?ease:Null<Float->Float>):Void
+{
+	isCameraOnForcedPos = true;
+	camFollow.setPosition(x, y);
+	tweenCameraToFollowPoint(duration, ease);
+}
+
+public function tweenCameraToFollowPoint(duration:Float = 0, ?ease:Null<Float->Float>):Void
+{
+	cancelCameraFollowTween();
+
+	if (duration <= 0)
+	{
+		resetCameraFollow(true);
+	}
+	else
+	{
+		FlxG.camera.target = null;
+		var targetX:Float = camFollow.x - FlxG.camera.width * 0.5;
+		var targetY:Float = camFollow.y - FlxG.camera.height * 0.5;
+		cameraFollowTween = FlxTween.tween(FlxG.camera.scroll, {x: targetX, y: targetY}, duration / playbackRate, {
+			ease: ease,
+			onComplete: function(_)
+			{
+				cameraFollowTween = null;
+				resetCameraFollow(false);
+			}
+		});
+	}
+}
+
+public function cancelCameraFollowTween():Void
+{
+	if (cameraFollowTween != null)
+	{
+		cameraFollowTween.cancel();
+		cameraFollowTween = null;
+	}
+}
+
+function shiftCameraZoom(target:Float):Void
+{
+	var delta:Float = target - defaultCamZoom;
+	defaultCamZoom = target;
+	FlxG.camera.zoom += delta;
+}
+
+public function tweenCameraZoom(zoom:Float = 1, duration:Float = 0, direct:Bool = false, ?ease:Null<Float->Float>):Void
+{
+	cancelCameraZoomTween();
+
+	var targetZoom:Float = zoom * (direct ? FlxCamera.defaultZoom : defaultStageZoom);
+
+	if (duration <= 0)
+	{
+		shiftCameraZoom(targetZoom);
+	}
+	else
+	{
+		cameraZoomTween = FlxTween.num(defaultCamZoom, targetZoom, duration / playbackRate, {
+			ease: ease,
+			onComplete: function(_)
+			{
+				cameraZoomTween = null;
+			}
+		}, shiftCameraZoom);
+	}
+}
+
+public function cancelCameraZoomTween():Void
+{
+	if (cameraZoomTween != null)
+	{
+		cameraZoomTween.cancel();
+		cameraZoomTween = null;
+	}
+}
+
+public function cancelAllCameraTweens():Void
+{
+	cancelCameraFollowTween();
+	cancelCameraZoomTween();
+}
+
+function applyScrollSpeeds(player:Float, opponent:Float):Void
+{
+	if (Math.abs(player) < 0.001)
+		player = 0.001;
+
+	var newScale:Float = opponent / player;
+	var ratio:Float = newScale / opponentSpeedScale;
+
+	songSpeed = player;
+
+	if (ratio != 1 && !Math.isNaN(ratio) && Math.isFinite(ratio))
+	{
+		for (note in notes.members)
+			if (note != null && !note.mustPress)
+				note.multSpeed = note.multSpeed * ratio;
+		for (note in unspawnNotes)
+			if (!note.mustPress)
+				note.multSpeed = note.multSpeed * ratio;
+		opponentSpeedScale = newScale;
+	}
+}
+
+public function tweenScrollSpeed(?speed:Float, duration:Float = 0, ?ease:Null<Float->Float>, strumlines:Array<String>):Void
+{
+	cancelScrollSpeedTweens();
+
+	var value:Float = speed == null ? 0 : speed;
+	var startPlayer:Float = songSpeed;
+	var startOpponent:Float = songSpeed * opponentSpeedScale;
+	var endPlayer:Float = strumlines.contains('playerStrumline') ? value : startPlayer;
+	var endOpponent:Float = strumlines.contains('opponentStrumline') ? value : startOpponent;
+
+	if (duration <= 0)
+	{
+		applyScrollSpeeds(endPlayer, endOpponent);
+		return;
+	}
+
+	scrollSpeedTargets = [endPlayer, endOpponent];
+	scrollSpeedTween = FlxTween.num(0, 1, duration / playbackRate, {
+		ease: ease,
+		onComplete: function(_)
+		{
+			scrollSpeedTween = null;
+			scrollSpeedTargets = null;
+		}
+	}, function(t:Float)
+	{
+		applyScrollSpeeds(startPlayer + (endPlayer - startPlayer) * t, startOpponent + (endOpponent - startOpponent) * t);
+	});
+}
+
+public function cancelScrollSpeedTweens():Void
+{
+	if (scrollSpeedTween != null)
+	{
+		scrollSpeedTween.cancel();
+		scrollSpeedTween = null;
+	}
+	if (scrollSpeedTargets != null)
+	{
+		var targets:Array<Float> = scrollSpeedTargets;
+		scrollSpeedTargets = null;
+		applyScrollSpeeds(targets[0], targets[1]);
+	}
+}
 
 public function moveCamera(isDad:Bool)
 {
@@ -3967,8 +4167,10 @@ override function beatHit()
 	if (generatedMusic)
 		notes.sort(FlxSort.byY, ClientPrefs.data.downScroll ? FlxSort.ASCENDING : FlxSort.DESCENDING);
 
-	iconP1.scale.set(1.2, 1.2);
-	iconP2.scale.set(1.2, 1.2);
+	if (iconP1.shouldBop)
+		iconP1.scale.set(1.2 * iconP1.baseScale, 1.2 * iconP1.baseScale);
+	if (iconP2.shouldBop)
+		iconP2.scale.set(1.2 * iconP2.baseScale, 1.2 * iconP2.baseScale);
 
 	iconP1.updateHitbox();
 	iconP2.updateHitbox();
