@@ -1,6 +1,7 @@
 package mikolka.vslice.ui.mods;
 
 import flixel.FlxCamera;
+import mikolka.funkin.FlxAtlasSprite;
 import flixel.group.FlxGroup;
 
 class ModMenuCharacter
