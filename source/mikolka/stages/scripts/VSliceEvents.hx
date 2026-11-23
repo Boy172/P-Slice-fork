@@ -1,8 +1,15 @@
 package mikolka.stages.scripts;
 
+import haxe.Json;
+import flixel.util.FlxTimer;
+import mikolka.funkin.custom.mobile.FullScreenScaleMode;
+
 class VSliceEvents extends BaseStage {
     private var zoomTween:FlxTween;
     private var camTween:FlxTween;
+    private var tempVocals:FlxSound;
+    private var tempTarget:Character;
+    private var tempTimer:FlxTimer;
 
     override function eventCalled(eventName:String, value1:String, value2:String, flValue1:Null<Float>, flValue2:Null<Float>, strumTime:Float) {
         #if js
@@ -11,6 +18,16 @@ class VSliceEvents extends BaseStage {
         value2 = Std.string(value1);
         #end
         switch (eventName){
+            case 'FocusCamera':
+                focusCameraEvent(value1, value2);
+            case 'ZoomCamera':
+                zoomCameraEvent(value1, value2);
+            case 'PlayAnimation':
+                playAnimationEvent(value1, value2);
+            case 'ScrollSpeed':
+                scrollSpeedEvent(value1, value2);
+            case 'SetHealthIcon':
+                setHealthIconEvent(value1, value2);
             case 'Vslice Scroll Speed':
 				if (game.songSpeedType != "constant")
 				{
@@ -117,5 +134,195 @@ class VSliceEvents extends BaseStage {
 					}
 				});
         }
+    }
+
+    static function readData(value1:String, value2:String, key1:String, key2:String):Dynamic {
+        var raw:String = value1 == null ? '' : value1.trim();
+        if (raw.length > 0 && raw.charAt(0) == '{') {
+            try {
+                return Json.parse(raw);
+            } catch (e:Dynamic) {}
+        }
+        var data:Dynamic = {};
+        if (raw.length > 0) Reflect.setField(data, key1, raw);
+        var second:String = value2 == null ? '' : value2.trim();
+        if (second.length > 0) Reflect.setField(data, key2, second);
+        return data;
+    }
+
+    static function num(data:Dynamic, key:String, def:Float):Float {
+        var value:Dynamic = Reflect.field(data, key);
+        if (value == null) return def;
+        var parsed:Float = Std.parseFloat(Std.string(value));
+        return Math.isNaN(parsed) ? def : parsed;
+    }
+
+    static function text(data:Dynamic, key:String, def:String):String {
+        var value:Dynamic = Reflect.field(data, key);
+        return value == null ? def : Std.string(value);
+    }
+
+    static function flag(data:Dynamic, key:String, def:Bool):Bool {
+        var value:Dynamic = Reflect.field(data, key);
+        if (value == null) return def;
+        var s:String = Std.string(value).toLowerCase();
+        return s == 'true' || s == '1';
+    }
+
+    static function easeFunc(ease:String, dir:String):Null<Float->Float> {
+        var lower:String = ease.toLowerCase();
+        var suffix:String = dir;
+        if (lower == 'linear' || lower.endsWith('in') || lower.endsWith('out')) suffix = '';
+        var fn:Null<Float->Float> = Reflect.getProperty(FlxEase, ease + suffix);
+        return fn;
+    }
+
+    static function stepsToSeconds(steps:Float):Float {
+        return Conductor.stepCrochet * steps / 1000;
+    }
+
+    function focusCameraEvent(value1:String, value2:String):Void {
+        var data:Dynamic = readData(value1, value2, 'char', 'duration');
+        var char:Int = Std.int(num(data, 'char', 0));
+        var targetX:Float = num(data, 'x', 0);
+        var targetY:Float = num(data, 'y', 0);
+        var duration:Float = num(data, 'duration', 4);
+        var ease:String = text(data, 'ease', 'CLASSIC');
+        var easeDir:String = text(data, 'easeDir', 'In');
+
+        if (char >= 0 && char <= 2) {
+            var point = game.getCameraFocusPoint(char);
+            if (point == null) return;
+            targetX += point.x;
+            targetY += point.y;
+            point.put();
+        }
+
+        if (ease == 'CLASSIC') {
+            game.cancelCameraFollowTween();
+            game.resetCameraFollow(false);
+            game.isCameraOnForcedPos = true;
+            game.camFollow.setPosition(targetX, targetY);
+        } else if (ease == 'INSTANT') {
+            game.tweenCameraToPosition(targetX, targetY, 0);
+        } else {
+            var fn = easeFunc(ease, easeDir);
+            if (fn == null) return;
+            game.tweenCameraToPosition(targetX, targetY, stepsToSeconds(duration), fn);
+        }
+    }
+
+    function zoomCameraEvent(value1:String, value2:String):Void {
+        var data:Dynamic = readData(value1, value2, 'zoom', 'duration');
+        var zoom:Float = num(data, 'zoom', 1);
+        var scaleX:Float = num(data, 'widescreenScaleX', 0);
+        var scaleY:Float = num(data, 'widescreenScaleY', 0);
+        var duration:Float = num(data, 'duration', 4);
+        var direct:Bool = text(data, 'mode', 'direct') == 'direct';
+        var ease:String = text(data, 'ease', 'linear');
+        var easeDir:String = text(data, 'easeDir', 'In');
+
+        var wide = FullScreenScaleMode.wideScale;
+        var scaledZoom:Float = zoom + zoom * ((wide.x - 1) * scaleX + (wide.y - 1) * scaleY);
+
+        if (ease == 'INSTANT') {
+            game.tweenCameraZoom(scaledZoom, 0, direct);
+        } else {
+            var fn = easeFunc(ease, easeDir);
+            if (fn == null) return;
+            game.tweenCameraZoom(scaledZoom, stepsToSeconds(duration), direct, fn);
+        }
+    }
+
+    function playAnimationEvent(value1:String, value2:String):Void {
+        var data:Dynamic = readData(value1, value2, 'target', 'anim');
+        var targetName:String = text(data, 'target', 'boyfriend');
+        var anim:String = text(data, 'anim', 'idle');
+        var force:Bool = flag(data, 'force', false);
+
+        var target:Dynamic = null;
+        var vocals:FlxSound = null;
+        switch (targetName) {
+            case 'boyfriend' | 'bf' | 'player':
+                target = game.boyfriend;
+                vocals = game.vocals;
+            case 'dad' | 'opponent':
+                target = game.dad;
+                vocals = game.opponentVocals;
+            case 'girlfriend' | 'gf':
+                target = game.gf;
+            default:
+                target = game.getLuaObject(targetName);
+        }
+
+        if (target == null) return;
+
+        if (Std.isOfType(target, Character)) {
+            var char:Character = cast target;
+            if (!force && char.specialAnim) return;
+            if (!char.hasAnimation(anim)) return;
+
+            if (force && vocals != null) {
+                if (vocals.volume == 0) {
+                    vocals.volume = 1;
+                    tempVocals = vocals;
+                }
+                tempTarget = char;
+                if (tempTimer == null) tempTimer = new FlxTimer();
+                tempTimer.start(0.05, checkTempVocals, 0);
+            }
+
+            char.playAnim(anim, force);
+            char.specialAnim = force;
+        } else {
+            var sprite:FlxSprite = cast target;
+            if (sprite.animation != null) sprite.animation.play(anim, force);
+        }
+    }
+
+    function checkTempVocals(timer:FlxTimer):Void {
+        if (tempTarget != null && tempTarget.specialAnim) return;
+        if (tempVocals != null) tempVocals.volume = 0;
+        tempVocals = null;
+        tempTarget = null;
+        timer.cancel();
+    }
+
+    function scrollSpeedEvent(value1:String, value2:String):Void {
+        if (game.songSpeedType == 'constant') return;
+
+        var data:Dynamic = readData(value1, value2, 'scroll', 'duration');
+        var scroll:Float = num(data, 'scroll', 1);
+        var duration:Float = num(data, 'duration', 4);
+        var ease:String = text(data, 'ease', 'linear');
+        var easeDir:String = text(data, 'easeDir', 'In');
+        var strumline:String = text(data, 'strumline', 'both');
+        var absolute:Bool = flag(data, 'absolute', false);
+
+        if (!absolute) scroll = scroll * PlayState.SONG.speed * ClientPrefs.getGameplaySetting('scrollspeed');
+
+        var names:Array<String> = strumline == 'both' ? ['playerStrumline', 'opponentStrumline'] : [strumline + 'Strumline'];
+
+        if (ease == 'INSTANT') {
+            game.tweenScrollSpeed(scroll, 0, null, names);
+        } else {
+            var fn = easeFunc(ease, easeDir);
+            if (fn == null) return;
+            game.tweenScrollSpeed(scroll, stepsToSeconds(duration), fn, names);
+        }
+    }
+
+    function setHealthIconEvent(value1:String, value2:String):Void {
+        var data:Dynamic = readData(value1, value2, 'char', 'id');
+        var char:Int = Std.int(num(data, 'char', 0));
+        var id:String = text(data, 'id', 'face');
+
+        var icon:HealthIcon = char == 0 ? game.iconP1 : (char == 1 ? game.iconP2 : null);
+        if (icon == null) return;
+
+        icon.configure(id, num(data, 'scale', 1), flag(data, 'flipX', false), flag(data, 'isPixel', false), flag(data, 'shouldBop', true),
+            num(data, 'offsetX', 0), num(data, 'offsetY', 0));
+        icon.y = game.healthBar.y - icon.restWidth / 2;
+        game.health = game.health;
     }
 }
