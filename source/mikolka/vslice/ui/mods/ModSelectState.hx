@@ -10,6 +10,7 @@ import flixel.tweens.FlxEase;
 import flixel.tweens.FlxTween;
 import flixel.util.FlxColor;
 import flixel.util.FlxTimer;
+import mikolka.compatibility.VsliceOptions;
 import mikolka.vslice.ui.mods.ModMenuList;
 import mikolka.vslice.ui.title.TitleState;
 
