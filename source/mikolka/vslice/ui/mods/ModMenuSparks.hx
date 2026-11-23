@@ -1,6 +1,7 @@
 package mikolka.vslice.ui.mods;
 
 import flixel.sound.FlxSound;
+import mikolka.funkin.FlxAtlasSprite;
 
 class ModMenuSparks extends FlxAtlasSprite
 {
