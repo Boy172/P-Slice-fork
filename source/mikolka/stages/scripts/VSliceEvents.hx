@@ -5,6 +5,7 @@ import haxe.Json;
 import flixel.util.FlxTimer;
 import mikolka.funkin.custom.mobile.FullScreenScaleMode;
 import objects.Character;
+import objects.HealthIcon;
 
 class VSliceEvents extends BaseStage {
     private var zoomTween:FlxTween;
