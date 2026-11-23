@@ -90,7 +90,12 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		['Play Sound', "Value 1: Sound file name\nValue 2: Volume (Default: 1), ranges from 0 to 1"],
 		['Set Camera Bopping', "Sets how camera should bop.\nValue 1: Frequency (in beats)\nValue 2: Intensity scale (1 for default)"],
 		['Zoom Camera', "An attempt to emulate V-slice camera zoom.\nNot really accurate, but whatever.\n\nValue 1: Zoom length (in steps) and zoom scale.\n[separated with ',']\n\nValue 2: Zooming ease"],
-		['Target Camera', "Focus camera on the specific point.\nThis will also lock the camera (like Camera Follow Pos)\n\nValue1:character to focus\nValue2: separated with ',' x, y, duration, ease"]
+		['Target Camera', "Focus camera on the specific point.\nThis will also lock the camera (like Camera Follow Pos)\n\nValue1:character to focus\nValue2: separated with ',' x, y, duration, ease"],
+		['FocusCamera', "V-Slice camera focus.\nValue 1: JSON {\"char\":0,\"x\":0,\"y\":0,\"duration\":4,\"ease\":\"CLASSIC\"}\nchar: -1 position, 0 player, 1 opponent, 2 girlfriend\nA plain char number also works."],
+		['ZoomCamera', "V-Slice camera zoom.\nValue 1: JSON {\"zoom\":1.3,\"duration\":4,\"mode\":\"direct\",\"ease\":\"linear\"}\nmode: direct or stage\nA plain zoom number in Value 1 and a duration in steps in Value 2 also work."],
+		['PlayAnimation', "V-Slice play animation.\nValue 1: JSON {\"target\":\"boyfriend\",\"anim\":\"hey\",\"force\":true}\ntarget: boyfriend, dad, girlfriend or a sprite tag\nOr Value 1: target, Value 2: animation."],
+		['ScrollSpeed', "V-Slice scroll speed.\nValue 1: JSON {\"scroll\":1.5,\"duration\":4,\"ease\":\"linear\",\"strumline\":\"both\",\"absolute\":false}\nstrumline: both, player or opponent\nOr Value 1: multiplier, Value 2: duration in steps."],
+		['SetHealthIcon', "V-Slice health icon.\nValue 1: JSON {\"char\":1,\"id\":\"dad\",\"scale\":1,\"flipX\":false,\"isPixel\":false,\"shouldBop\":true}\nchar: 0 player, 1 opponent\nOr Value 1: char, Value 2: icon id."]
 	];
 	
 	public static var keysArray:Array<FlxKey> = [ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT]; //Used for Vortex Editor
