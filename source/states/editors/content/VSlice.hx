@@ -270,7 +270,7 @@ class VSlice
 		var pack:PsychPackage = {difficulties: songDifficulties, events: null};
 
 		var fileEvents:Array<Dynamic> = [];
-		var remainingEvents:Array<Dynamic> = allEvents.filter((event:Dynamic) -> !focusCameraEvents.contains(event));
+		var remainingEvents:Array<Dynamic> = allEvents;
 		if(remainingEvents.length > 0)
 		{
 			for (num => event in remainingEvents)
@@ -281,10 +281,15 @@ class VSlice
 					switch(Type.typeof(event.v))
 					{
 						case TObject:
-							for (field in Reflect.fields(event.v))
+							if(fullDataEvents.contains(event.e))
+								fields.push(haxe.Json.stringify(event.v));
+							else
 							{
-								fields.push(Std.string(Reflect.field(event.v, field)));
-								if(fields.length == 2) break;
+								for (field in Reflect.fields(event.v))
+								{
+									fields.push(Std.string(Reflect.field(event.v, field)));
+									if(fields.length == 2) break;
+								}
 							}
 						case TClass(String):
 							fields.push(event.v);
@@ -313,6 +318,8 @@ class VSlice
 		}
 		return pack;
 	}
+
+	static final fullDataEvents:Array<String> = ['FocusCamera', 'ZoomCamera', 'PlayAnimation', 'ScrollSpeed', 'SetHealthIcon'];
 
 	public static function export(songData:SwagSong, ?difficultyName:String = null):VSlicePackage
 	{
