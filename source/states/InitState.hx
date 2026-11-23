@@ -2,7 +2,6 @@ package states;
 
 import lime.utils.Assets;
 import mikolka.funkin.custom.mobile.MobileScaleMode;
-import mikolka.funkin.custom.mobile.FullScreenScaleMode;
 import mikolka.vslice.ui.title.TitleState;
 import flixel.input.keyboard.FlxKey;
 import mikolka.vslice.ui.disclaimer.TextWarnings.FlashingState;
@@ -72,7 +71,6 @@ class InitState extends MusicBeatState
 
 		
 		FlxG.scaleMode = new MobileScaleMode(ClientPrefs.data.wideScreen); 
-		FullScreenScaleMode.initStateHook();
 		
 		#if TOUCH_CONTROLS_ALLOWED
 		trace("Loading mobile data");
