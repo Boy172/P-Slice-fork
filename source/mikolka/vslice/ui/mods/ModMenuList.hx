@@ -112,6 +112,7 @@ class ModMenuItem extends FlxSpriteGroup
 	public var rate:Float = 22;
 	public var fade:Float = 1;
 
+	var clipCache:Array<Float> = [];
 	var bg:FlxSprite;
 	var icon:FlxSprite;
 	var title:FlxText;
@@ -224,17 +225,79 @@ class ModMenuItem extends FlxSpriteGroup
 	public function toScreen(list:ModMenuList, topCam:FlxCamera):Void
 	{
 		if (screenSpace) return;
-		setPosition(x + list.cam.x, y + list.cam.y);
 		cameras = [topCam];
 		screenSpace = true;
+		clearClip();
 	}
 
 	public function toList(list:ModMenuList):Void
 	{
 		if (!screenSpace) return;
-		setPosition(x - list.cam.x, y - list.cam.y);
 		cameras = [list.cam];
 		screenSpace = false;
+	}
+
+	public function clearClip():Void
+	{
+		for (i in 0...members.length)
+		{
+			var m:FlxSprite = members[i];
+			if (m == null) continue;
+			m.visible = true;
+			if (m.clipRect != null) m.clipRect = null;
+			clipCache[i * 4] = Math.NaN;
+		}
+	}
+
+	public function applyClip(view:FlxRect):Void
+	{
+		for (i in 0...members.length)
+		{
+			var m:FlxSprite = members[i];
+			if (m == null) continue;
+
+			var sx:Float = Math.abs(m.scale.x);
+			var sy:Float = Math.abs(m.scale.y);
+			var left:Float = m.x;
+			var top:Float = m.y;
+			var right:Float = left + m.frameWidth * sx;
+			var bottom:Float = top + m.frameHeight * sy;
+
+			var ix1:Float = Math.max(left, view.x);
+			var iy1:Float = Math.max(top, view.y);
+			var ix2:Float = Math.min(right, view.x + view.width);
+			var iy2:Float = Math.min(bottom, view.y + view.height);
+
+			if (ix2 <= ix1 || iy2 <= iy1)
+			{
+				m.visible = false;
+				clipCache[i * 4] = Math.NaN;
+				continue;
+			}
+
+			m.visible = true;
+
+			if (ix1 <= left && iy1 <= top && ix2 >= right && iy2 >= bottom)
+			{
+				if (m.clipRect != null) m.clipRect = null;
+				clipCache[i * 4] = Math.NaN;
+				continue;
+			}
+
+			var cx:Float = Math.round((ix1 - left) / sx);
+			var cy:Float = Math.round((iy1 - top) / sy);
+			var cw:Float = Math.round((ix2 - ix1) / sx);
+			var ch:Float = Math.round((iy2 - iy1) / sy);
+
+			var base:Int = i * 4;
+			if (clipCache[base] == cx && clipCache[base + 1] == cy && clipCache[base + 2] == cw && clipCache[base + 3] == ch) continue;
+
+			clipCache[base] = cx;
+			clipCache[base + 1] = cy;
+			clipCache[base + 2] = cw;
+			clipCache[base + 3] = ch;
+			m.clipRect = FlxRect.get(cx, cy, cw, ch);
+		}
 	}
 
 	override public function update(elapsed:Float):Void
@@ -247,6 +310,8 @@ class ModMenuItem extends FlxSpriteGroup
 		if (Math.abs(targetX - nx) < 0.3) nx = targetX;
 		if (Math.abs(targetY - ny) < 0.3) ny = targetY;
 		if (nx != x || ny != y) setPosition(nx, ny);
+
+		if (owner != null && !screenSpace) applyClip(owner.view);
 
 		var bgTarget:Float = selected || held ? 0.25 : 0;
 		var bgAlpha:Float = bgTarget;
@@ -273,6 +338,7 @@ class ModMenuList
 	public var items:Array<ModMenuItem> = [];
 	public var cam:FlxCamera;
 	public var rect:FlxRect;
+	public var view:FlxRect;
 	public var scroll:Float = 0;
 	public var targetScroll:Float = 0;
 	public var selIndex:Int = -1;
@@ -281,11 +347,12 @@ class ModMenuList
 	public var track:FlxSprite;
 	public var thumb:FlxSprite;
 
-	public function new(rect:FlxRect, cam:FlxCamera)
+	public function new(rect:FlxRect, view:FlxRect, cam:FlxCamera)
 	{
 		this.rect = rect;
+		this.view = view;
 		this.cam = cam;
-		viewH = cam.height;
+		viewH = view.height;
 
 		track = new FlxSprite().makeGraphic(1, 1, 0xFF3A393E);
 		track.alpha = 0.6;
@@ -373,12 +440,12 @@ class ModMenuList
 
 	public function slotScreenX():Float
 	{
-		return cam.x + ITEM_X;
+		return view.x + ITEM_X;
 	}
 
 	public function slotScreenY(index:Int):Float
 	{
-		return cam.y + index * STEP + targetScroll;
+		return view.y + index * STEP + targetScroll;
 	}
 
 	public function containsBox(px:Float, py:Float):Bool
@@ -388,7 +455,7 @@ class ModMenuList
 
 	public function containsView(px:Float, py:Float):Bool
 	{
-		return px >= cam.x && px <= cam.x + cam.width && py >= cam.y && py <= cam.y + cam.height;
+		return px >= view.x && px <= view.x + view.width && py >= view.y && py <= view.y + view.height;
 	}
 
 	public function itemAt(px:Float, py:Float):ModMenuItem
@@ -397,8 +464,8 @@ class ModMenuList
 		for (item in items)
 		{
 			if (item.flying || item.held) continue;
-			var ix:Float = cam.x + item.x;
-			var iy:Float = cam.y + item.y;
+			var ix:Float = item.x;
+			var iy:Float = item.y;
 			if (px >= ix && px <= ix + ModMenuItem.WIDTH && py >= iy && py <= iy + ModMenuItem.ICON) return item;
 		}
 		return null;
@@ -406,7 +473,7 @@ class ModMenuList
 
 	public function indexForY(py:Float):Int
 	{
-		return Math.round((py - cam.y - targetScroll - ModMenuItem.ICON / 2) / STEP);
+		return Math.round((py - view.y - targetScroll - ModMenuItem.ICON / 2) / STEP);
 	}
 
 	public function update(elapsed:Float):Void
@@ -422,8 +489,8 @@ class ModMenuList
 		{
 			var item:ModMenuItem = items[i];
 			if (item.flying || item.held) continue;
-			item.targetX = ITEM_X;
-			item.targetY = i * STEP + scroll;
+			item.targetX = view.x + ITEM_X;
+			item.targetY = view.y + i * STEP + scroll;
 			item.rate = snap ? 1000 : 22;
 		}
 
