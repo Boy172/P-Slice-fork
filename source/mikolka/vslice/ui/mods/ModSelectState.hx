@@ -283,7 +283,8 @@ class ModSelectState extends MusicBeatState
 
 	function buildBackButton():Void
 	{
-		backBtn = atlas(leftBox.x - 50 - cutX + cutX / 4, topText.y + topText.height / 2 - 38, 'back-arrow', 0.7, FlxG.camera);
+		backBtn = atlas(0, 0, 'back-arrow', 0.7, FlxG.camera);
+		ModMenuCharacter.place(backBtn, 'back-arrow', leftBox.x - 50 - cutX + cutX / 4, topText.y + topText.height / 2 - 43.2, 0.7, true);
 		backBtn.playAnimation('default', true, false, true);
 		add(backBtn);
 		backRect = [leftBox.x - 70 - cutX + cutX / 4, topText.y - 10, 170, topText.height + 20];
@@ -332,9 +333,11 @@ class ModSelectState extends MusicBeatState
 		bf = new ModMenuCharacter(bfX, bfY, 'bf', false, camChars);
 		add(bf.group);
 
-		fgBottom = atlas(bfX - 144, bfY - 90, 'foreground-wires-bottom', 0.7, camChars);
+		fgBottom = atlas(0, 0, 'foreground-wires-bottom', 0.7, camChars);
+		ModMenuCharacter.place(fgBottom, 'foreground-wires-bottom', bfX - 144, bfY - 90, 0.7, true);
 		add(fgBottom);
-		fgTop = atlas(bfX - 144, bfY - 90, 'foreground-wires-top', 0.7, camChars);
+		fgTop = atlas(0, 0, 'foreground-wires-top', 0.7, camChars);
+		ModMenuCharacter.place(fgTop, 'foreground-wires-top', bfX - 144, bfY - 90, 0.7, true);
 		add(fgTop);
 
 		smokeGF = sparrow(gfX + 70, bfY - 180, 'smoke');
@@ -357,7 +360,8 @@ class ModSelectState extends MusicBeatState
 		smokeBF.cameras = [camChars];
 		add(smokeBF);
 
-		smokeCloud = atlas(batteryX - 415, -450, 'smoke-cloud', 0.75, camChars);
+		smokeCloud = atlas(0, 0, 'smoke-cloud', 0.75, camChars);
+		ModMenuCharacter.place(smokeCloud, 'smoke-cloud', batteryX - 415, -450, 0.75, false);
 		smokeCloud.visible = false;
 		add(smokeCloud);
 
@@ -1020,6 +1024,8 @@ class ModSelectState extends MusicBeatState
 
 	function afterShock():Void
 	{
+		bf.setWhite(true);
+		gf.setWhite(true);
 		blackFlash.visible = true;
 		carBattery.visible = false;
 		gfWire.visible = false;
