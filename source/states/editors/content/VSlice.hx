@@ -275,43 +275,8 @@ class VSlice
 		{
 			for (num => event in remainingEvents)
 			{
-				var fields:Array<Dynamic> = [];
-				if(event.v != null)
-				{
-					switch(Type.typeof(event.v))
-					{
-						case TObject:
-							if(fullDataEvents.contains(event.e))
-								fields.push(haxe.Json.stringify(event.v));
-							else
-							{
-								for (field in Reflect.fields(event.v))
-								{
-									fields.push(Std.string(Reflect.field(event.v, field)));
-									if(fields.length == 2) break;
-								}
-							}
-						case TClass(String):
-							fields.push(event.v);
-						case TClass(Array):
-							var arr:Array<Dynamic> = cast event.v;
-							if(arr != null && arr.length > 0)
-							{
-								for (value in arr)
-								{
-									fields.push(Std.string(value));
-
-									if(fields.length == 2) break;
-								}
-							}
-						default:
-							fields.push(Std.string(event.v));
-					}
-				}
-				while(fields.length < 2) fields.push('');
-
-				fields.insert(0, event.e);
-				fileEvents.push([event.t, [fields]]);
+				if(event == null || event.e == null) continue;
+				fileEvents.push([event.t, [eventFields(event)]]);
 			}
 			fileEvents.sort(sortByTime);
 			pack.events = {events: fileEvents, format: 'psych_v1_convert'};
@@ -320,6 +285,190 @@ class VSlice
 	}
 
 	static final fullDataEvents:Array<String> = ['FocusCamera', 'ZoomCamera', 'PlayAnimation', 'ScrollSpeed', 'SetHealthIcon'];
+	static final characterNames:Array<String> = ['bf', 'dad', 'gf'];
+
+	static function isSimple(value:Dynamic):Bool
+	{
+		return value == null || Std.isOfType(value, String) || Std.isOfType(value, Float) || Std.isOfType(value, Bool);
+	}
+
+	static function fieldText(data:Dynamic, key:String, fallback:String):String
+	{
+		if(data == null || !Reflect.hasField(data, key)) return fallback;
+		var value:Dynamic = Reflect.field(data, key);
+		return value == null ? fallback : Std.string(value);
+	}
+
+	static function characterName(value:Dynamic):String
+	{
+		var index:Int = Std.int(Std.parseFloat(Std.string(value)));
+		if(index >= 0 && index < characterNames.length) return characterNames[index];
+		return 'bf';
+	}
+
+	static function characterIndex(value:String):Int
+	{
+		return switch(value.trim().toLowerCase())
+		{
+			case 'dad' | 'opponent' | '1': 1;
+			case 'gf' | 'girlfriend' | '2': 2;
+			default: 0;
+		}
+	}
+
+	static function eventFields(event:Dynamic):Array<Dynamic>
+	{
+		var name:String = event.e;
+		var value:Dynamic = event.v;
+		if(value == null) return [name, '', ''];
+
+		var isObject:Bool = Type.typeof(value) == TObject;
+		switch(name)
+		{
+			case 'SetCameraBop':
+				if(isObject) return ['Set Camera Bopping', fieldText(value, 'rate', '4'), fieldText(value, 'intensity', '1')];
+			case 'SetCharacter':
+				if(isObject) return ['Change Character', characterName(fieldText(value, 'char', '0')), fieldText(value, 'charId', '')];
+			case 'SetTargetBopSpeed':
+				if(isObject)
+				{
+					var target:String = fieldText(value, 'target', 'boyfriend');
+					if(target == 'gf' || target == 'girlfriend')
+						return ['Set GF Speed', fieldText(value, 'rate', '1'), ''];
+				}
+			default:
+		}
+
+		if(isObject)
+		{
+			var keys:Array<String> = Reflect.fields(value);
+			var simple:Bool = keys.length <= 2;
+			for (key in keys)
+				if(!isSimple(Reflect.field(value, key))) simple = false;
+
+			if(fullDataEvents.contains(name) || !simple)
+				return [name, haxe.Json.stringify(value), ''];
+
+			var first:String = keys.length > 0 ? Std.string(Reflect.field(value, keys[0])) : '';
+			var second:String = keys.length > 1 ? Std.string(Reflect.field(value, keys[1])) : '';
+			return [name, first, second];
+		}
+
+		if(Std.isOfType(value, Array))
+		{
+			var items:Array<Dynamic> = cast value;
+			var simple:Bool = items.length <= 2;
+			for (item in items)
+				if(!isSimple(item)) simple = false;
+
+			if(!simple) return [name, haxe.Json.stringify(value), ''];
+			return [name, items.length > 0 ? Std.string(items[0]) : '', items.length > 1 ? Std.string(items[1]) : ''];
+		}
+
+		return [name, Std.string(value), ''];
+	}
+
+	static final numberPattern:EReg = ~/^-?\d+(\.\d+)?$/;
+	static final easePattern:EReg = ~/^(.*?)(InOut|In|Out)$/i;
+
+	static function numeric(text:String, fallback:Float):Float
+	{
+		var parsed:Float = Std.parseFloat(text);
+		return Math.isNaN(parsed) ? fallback : parsed;
+	}
+
+	static function typedData(data:Dynamic):Dynamic
+	{
+		var result:Dynamic = {};
+		for (key in Reflect.fields(data))
+		{
+			var raw:Dynamic = Reflect.field(data, key);
+			if(Std.isOfType(raw, String))
+			{
+				var text:String = raw;
+				if(text == 'true') raw = true;
+				else if(text == 'false') raw = false;
+				else if(numberPattern.match(text))
+					raw = text.indexOf('.') >= 0 ? Std.parseFloat(text) : Std.parseInt(text);
+			}
+			Reflect.setField(result, key, raw);
+		}
+
+		if(Reflect.hasField(result, 'ease'))
+		{
+			var ease:String = Std.string(Reflect.field(result, 'ease'));
+			var upper:String = ease.toUpperCase();
+			if(upper != 'CLASSIC' && upper != 'INSTANT' && upper != 'LINEAR' && easePattern.match(ease))
+			{
+				Reflect.setField(result, 'ease', easePattern.matched(1));
+				Reflect.setField(result, 'easeDir', easePattern.matched(2));
+			}
+		}
+		return result;
+	}
+
+	static function targetName(value:String):String
+	{
+		return switch(value.toLowerCase())
+		{
+			case 'dad' | 'opponent' | '1': 'dad';
+			case 'gf' | 'girlfriend' | '2': 'girlfriend';
+			default: 'boyfriend';
+		}
+	}
+
+	static function exportEvent(name:String, value1:Dynamic, value2:Dynamic):Array<Dynamic>
+	{
+		var first:String = value1 == null ? '' : Std.string(value1).trim();
+		var second:String = value2 == null ? '' : Std.string(value2).trim();
+
+		switch(name)
+		{
+			case 'Set Camera Bopping':
+				return ['SetCameraBop', {rate: numeric(first, 4), intensity: numeric(second, 1)}];
+			case 'Change Character':
+				return ['SetCharacter', {char: characterIndex(first), charId: second}];
+			case 'Set GF Speed':
+				return ['SetTargetBopSpeed', {target: 'gf', rate: numeric(first, 1)}];
+			case 'Play Animation':
+				return ['PlayAnimation', {target: targetName(second), anim: first, force: true}];
+			case 'Target Camera':
+				var parts:Array<String> = second.split(',').map(function(part:String) return part.trim());
+				if(parts.length >= 4)
+				{
+					var data:Dynamic = {char: characterIndex(first), x: numeric(parts[0], 0), y: numeric(parts[1], 0), duration: numeric(parts[2], 4), ease: parts[3]};
+					return ['FocusCamera', typedData(data)];
+				}
+			case 'Zoom Camera':
+				var parts:Array<String> = first.split(',').map(function(part:String) return part.trim());
+				if(parts.length >= 2)
+				{
+					var data:Dynamic = {zoom: numeric(parts[1], 1), duration: numeric(parts[0], 4), mode: 'stage', ease: second.length > 0 ? second : 'linear'};
+					return ['ZoomCamera', typedData(data)];
+				}
+			case 'FocusCamera' | 'ZoomCamera' | 'PlayAnimation' | 'ScrollSpeed' | 'SetHealthIcon':
+				if(first.startsWith('{'))
+				{
+					try
+					{
+						return [name, haxe.Json.parse(first)];
+					}
+					catch(e:Dynamic) {}
+				}
+				return [name, typedData(mikolka.stages.scripts.VSliceEvents.readLegacy(name, first, second))];
+			default:
+		}
+
+		if(first.startsWith('{'))
+		{
+			try
+			{
+				return [name, haxe.Json.parse(first)];
+			}
+			catch(e:Dynamic) {}
+		}
+		return [name, {value1: first, value2: second}];
+	}
 
 	public static function export(songData:SwagSong, ?difficultyName:String = null):VSlicePackage
 	{
@@ -331,7 +480,10 @@ class VSlice
 				var subEvents:Array<Array<Dynamic>> = cast event[1];
 				if(subEvents != null && subEvents.length > 0)
 					for (lilEvent in subEvents)
-						events.push({t: event[0], e: lilEvent[0], v: {value1: lilEvent[1], value2: lilEvent[2]}});
+					{
+						var converted:Array<Dynamic> = exportEvent(lilEvent[0], lilEvent[1], lilEvent[2]);
+						events.push({t: event[0], e: converted[0], v: converted[1]});
+					}
 			}
 		}
 
