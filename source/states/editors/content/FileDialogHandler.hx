@@ -55,6 +55,11 @@ class FileDialogHandler extends FlxBasic
 		this._dialogMode = SAVE;
 		_startUp(onComplete, onCancel, onError);
 
+		#if mobile
+		mobileSave(fileName, dataToSave);
+		return;
+		#end
+
 		removeEvents();
 		_currentEvent = onSaveComplete;
 		_fileRef.addEventListener(#if desktop Event.SELECT #else Event.COMPLETE #end, _currentEvent);
@@ -75,6 +80,11 @@ class FileDialogHandler extends FlxBasic
 		filter = [];
 		#end
 
+		#if mobile
+		mobileOpen(title, filter);
+		return;
+		#end
+
 		removeEvents();
 		_currentEvent = onLoadComplete;
 		_fileRef.addEventListener(#if desktop Event.SELECT #else Event.COMPLETE #end, _currentEvent);
@@ -91,6 +101,11 @@ class FileDialogHandler extends FlxBasic
 		this._dialogMode = OPEN_DIRECTORY;
 		_startUp(onComplete, onCancel, onError);
 
+		#if mobile
+		mobileDirectory(title);
+		return;
+		#end
+
 		removeEvents();
 		_currentEvent = onLoadDirectoryComplete;
 		_fileRef.addEventListener(#if desktop Event.SELECT #else Event.COMPLETE #end, _currentEvent);
@@ -100,6 +115,103 @@ class FileDialogHandler extends FlxBasic
 	public var data:String;
 	public var path:String;
 	public var completed:Bool = true;
+
+	#if mobile
+	function mobileCancelled():Void
+	{
+		this.completed = true;
+		if(onCancel != null) onCancel();
+	}
+
+	function mobileFailed():Void
+	{
+		this.completed = true;
+		if(onError != null) onError();
+	}
+
+	function mobileExtensions(filter:Array<FileFilter>):Array<String>
+	{
+		var result:Array<String> = [];
+		if(filter == null) return result;
+
+		for (item in filter)
+		{
+			if(item == null || item.extension == null) continue;
+			for (raw in item.extension.split(';'))
+			{
+				var ext:String = raw.trim().toLowerCase();
+				if(ext.startsWith('*.')) ext = ext.substr(2);
+				else if(ext.startsWith('.')) ext = ext.substr(1);
+				if(ext.length > 0 && ext != '*') result.push(ext);
+			}
+		}
+		return result;
+	}
+
+	function mobileOpen(title:String, filter:Array<FileFilter>):Void
+	{
+		var browser:MobileFileBrowser = new MobileFileBrowser(PICK_FILE, title == null ? 'Select a file' : title, mobileExtensions(filter), null,
+			function(picked:String)
+			{
+				this.path = picked;
+				try
+				{
+					this.data = File.getContent(picked);
+				}
+				catch(e:Dynamic)
+				{
+					trace('Failed to read: $picked ($e)');
+					mobileFailed();
+					return;
+				}
+
+				this.completed = true;
+				trace('Loaded file from: $path');
+				if(onComplete != null) onComplete();
+			},
+			mobileCancelled);
+		FlxG.state.openSubState(browser);
+	}
+
+	function mobileDirectory(title:String):Void
+	{
+		var browser:MobileFileBrowser = new MobileFileBrowser(PICK_DIRECTORY, title == null ? 'Select a folder' : title, null, null,
+			function(picked:String)
+			{
+				this.path = picked;
+				this.completed = true;
+				trace('Loaded directory: $path');
+				if(onComplete != null) onComplete();
+			},
+			mobileCancelled);
+		FlxG.state.openSubState(browser);
+	}
+
+	function mobileSave(fileName:String, dataToSave:String):Void
+	{
+		var browser:MobileFileBrowser = new MobileFileBrowser(SAVE_FILE, 'Save "$fileName"', null, fileName,
+			function(picked:String)
+			{
+				try
+				{
+					File.saveContent(picked, dataToSave);
+				}
+				catch(e:Dynamic)
+				{
+					trace('Failed to save: $picked ($e)');
+					mobileFailed();
+					return;
+				}
+
+				this.path = picked;
+				this.completed = true;
+				trace('Saved file to: $path');
+				if(onComplete != null) onComplete();
+			},
+			mobileCancelled);
+		FlxG.state.openSubState(browser);
+	}
+	#end
 	function onSaveComplete(_)
 	{
 		@:privateAccess
@@ -144,7 +256,7 @@ class FileDialogHandler extends FlxBasic
 	{
 		removeEvents();
 		this.completed = true;
-		if(onCancel != null) onError();
+		if(onCancel != null) onCancel();
 	}
 
 	function onErrorFn(_)
