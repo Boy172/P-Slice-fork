@@ -177,7 +177,7 @@ class VSliceEvents extends BaseStage {
         else Reflect.setField(data, 'ease', token);
     }
 
-    static function readLegacy(event:String, value1:String, value2:String):Dynamic {
+    public static function readLegacy(event:String, value1:String, value2:String):Dynamic {
         var data:Dynamic = {};
         var a:Array<String> = splitValues(value1);
         var b:Array<String> = splitValues(value2);
