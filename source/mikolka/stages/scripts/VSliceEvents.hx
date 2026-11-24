@@ -14,6 +14,8 @@ class VSliceEvents extends BaseStage {
     private var tempTarget:Character;
     private var tempTimer:FlxTimer;
 
+    public static final NATIVE:Array<String> = ['FocusCamera', 'ZoomCamera', 'Zoom', 'PlayAnimation', 'ScrollSpeed', 'SetHealthIcon'];
+
     override function eventCalled(eventName:String, value1:String, value2:String, flValue1:Null<Float>, flValue2:Null<Float>, strumTime:Float) {
         #if js
         // I hate you JS part 2
@@ -25,6 +27,8 @@ class VSliceEvents extends BaseStage {
                 focusCameraEvent(value1, value2);
             case 'ZoomCamera':
                 zoomCameraEvent(value1, value2);
+            case 'Zoom':
+                zoomEvent(value1, value2);
             case 'PlayAnimation':
                 playAnimationEvent(value1, value2);
             case 'ScrollSpeed':
@@ -310,6 +314,42 @@ class VSliceEvents extends BaseStage {
             if (fn == null) return;
             game.tweenCameraZoom(scaledZoom, stepsToSeconds(duration), direct, fn);
         }
+    }
+
+    function zoomEvent(value1:String, value2:String):Void {
+        var tokens:Array<String> = splitValues(value1).concat(splitValues(value2));
+        var add:Float = 0.075;
+        var steps:Float = 4;
+        var type:String = 'cube';
+        var dir:String = 'Out';
+        var camName:String = 'camGame';
+
+        var t:Null<String> = pick(tokens, 0);
+        if (t != null && !Math.isNaN(Std.parseFloat(t))) add = Std.parseFloat(t);
+        t = pick(tokens, 1);
+        if (t != null && !Math.isNaN(Std.parseFloat(t))) steps = Std.parseFloat(t);
+        t = pick(tokens, 2);
+        if (t != null) type = t;
+        t = pick(tokens, 3);
+        if (t != null) dir = t;
+        t = pick(tokens, 4);
+        if (t != null) camName = t;
+
+        var instant:Bool = type.toLowerCase() == 'instant' || steps <= 0;
+        var fn:Null<Float->Float> = instant ? null : easeFunc(type, dir);
+
+        if (camName == 'camGame') {
+            var target:Float = game.defaultCamZoom + add;
+            game.tweenCameraZoom(target / FlxCamera.defaultZoom, instant ? 0 : stepsToSeconds(steps), true, fn);
+            return;
+        }
+
+        var cam:FlxCamera = camName == 'camHUD' ? game.camHUD : (camName == 'camOther' ? game.camOther : null);
+        if (cam == null) return;
+        var targetZoom:Float = cam.zoom + add;
+        FlxTween.cancelTweensOf(cam, ['zoom']);
+        if (instant) cam.zoom = targetZoom;
+        else FlxTween.tween(cam, {zoom: targetZoom}, stepsToSeconds(steps) / game.playbackRate, {ease: fn});
     }
 
     function playAnimationEvent(value1:String, value2:String):Void {
