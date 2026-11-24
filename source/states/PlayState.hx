@@ -626,14 +626,16 @@ class PlayState extends MusicBeatState
 		for (notetype in noteTypes)
 			startLuasNamed('custom_notetypes/' + notetype + '.lua');
 		for (event in eventsPushed)
-			startLuasNamed('custom_events/' + event + '.lua');
+			if (!mikolka.stages.scripts.VSliceEvents.NATIVE.contains(event))
+				startLuasNamed('custom_events/' + event + '.lua');
 		#end
 
 		#if HSCRIPT_ALLOWED
 		for (notetype in noteTypes)
 			startHScriptsNamed('custom_notetypes/' + notetype + '.hx');
 		for (event in eventsPushed)
-			startHScriptsNamed('custom_events/' + event + '.hx');
+			if (!mikolka.stages.scripts.VSliceEvents.NATIVE.contains(event))
+				startHScriptsNamed('custom_events/' + event + '.hx');
 		#end
 		noteTypes = null;
 		eventsPushed = null;
