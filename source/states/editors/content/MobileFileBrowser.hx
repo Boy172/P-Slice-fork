@@ -1,7 +1,9 @@
+
 package states.editors.content;
 
 import haxe.io.Path;
 import flixel.FlxSubState;
+import flixel.input.touch.FlxTouch;
 
 enum abstract BrowserMode(Int)
 {
@@ -63,12 +65,16 @@ class MobileFileBrowser extends FlxSubState
 	var entries:Array<{name:String, isDir:Bool}> = [];
 	var showAll:Bool = false;
 	var scroll:Float = 0;
+
 	var rowBgs:Array<FlxSprite> = [];
 	var rowTexts:Array<FlxText> = [];
+
 	var pathText:FlxText;
 	var statusText:FlxText;
+
 	var listTop:Float;
 	var listHeight:Float;
+
 	var buttons:Array<BrowserButton> = [];
 	var confirmButton:BrowserButton;
 	var allFilesButton:BrowserButton;
@@ -78,12 +84,17 @@ class MobileFileBrowser extends FlxSubState
 	var dragging:Bool = false;
 	var pressedInList:Bool = false;
 	var pressedButton:BrowserButton = null;
+
+	var touchActive:Bool = false;
+	var activeTouchID:Int = -1;
+
 	var finished:Bool = false;
 	var overwriteArmed:String = null;
 
 	public function new(mode:BrowserMode, title:String, extensions:Array<String>, ?fileName:String, onPick:String->Void, ?onCancel:Void->Void)
 	{
 		super();
+
 		this.mode = mode;
 		this.title = title;
 		this.extensions = extensions == null ? [] : extensions;
@@ -103,6 +114,7 @@ class MobileFileBrowser extends FlxSubState
 
 		var W:Float = FlxG.width;
 		var H:Float = FlxG.height;
+
 		listTop = HEADER_HEIGHT;
 		listHeight = H - HEADER_HEIGHT - FOOTER_HEIGHT;
 
@@ -112,6 +124,7 @@ class MobileFileBrowser extends FlxSubState
 		add(backdrop);
 
 		var rowCount:Int = Math.ceil(listHeight / ROW_HEIGHT) + 1;
+
 		for (i in 0...rowCount)
 		{
 			var rowBg:FlxSprite = new FlxSprite(20, 0).makeGraphic(Std.int(W - 40), ROW_HEIGHT - 3, 0xFF22222E);
@@ -158,9 +171,11 @@ class MobileFileBrowser extends FlxSubState
 
 		var shortcutX:Float = 20;
 		var shortcutY:Float = 80;
+
 		var addShortcut = function(name:String, dir:String):Void
 		{
 			if (dir == null) return;
+
 			try
 			{
 				if (!FileSystem.exists(dir) || !FileSystem.isDirectory(dir)) return;
@@ -170,51 +185,118 @@ class MobileFileBrowser extends FlxSubState
 				return;
 			}
 
-			var button:BrowserButton = new BrowserButton(shortcutX, shortcutY, 190, 36, name, 0xFF3A3A5A, function() navigate(dir), cam, this);
+			var button:BrowserButton = new BrowserButton(
+				shortcutX,
+				shortcutY,
+				190,
+				36,
+				name,
+				0xFF3A3A5A,
+				function() navigate(dir),
+				cam,
+				this
+			);
+
 			buttons.push(button);
 			shortcutX += 200;
 		};
 
 		var gameDir:String = normalize(StorageUtil.getStorageDirectory());
+
 		addShortcut('Game folder', gameDir);
+
 		var savesDir:String = gameDir + '/saves';
+
 		try
 		{
-			if (!FileSystem.exists(savesDir)) FileSystem.createDirectory(savesDir);
+			if (!FileSystem.exists(savesDir))
+				FileSystem.createDirectory(savesDir);
 		}
 		catch (e:Dynamic) {}
+
 		addShortcut('Saves', savesDir);
 		addShortcut('Download', '/storage/emulated/0/Download');
 		addShortcut('Storage', '/storage/emulated/0');
 
 		if (mode == PICK_FILE)
 		{
-			allFilesButton = new BrowserButton(W - 210, shortcutY, 190, 36, 'All files: OFF', 0xFF5A3A3A, toggleAllFiles, cam, this);
+			allFilesButton = new BrowserButton(
+				W - 210,
+				shortcutY,
+				190,
+				36,
+				'All files: OFF',
+				0xFF5A3A3A,
+				toggleAllFiles,
+				cam,
+				this
+			);
+
 			buttons.push(allFilesButton);
 		}
 
 		var footerY:Float = H - FOOTER_HEIGHT + 14;
-		buttons.push(new BrowserButton(20, footerY, 200, 56, 'Up', 0xFF3A3A5A, goUp, cam, this));
+
+		buttons.push(new BrowserButton(
+			20,
+			footerY,
+			200,
+			56,
+			'Up',
+			0xFF3A3A5A,
+			goUp,
+			cam,
+			this
+		));
 
 		if (mode != PICK_FILE)
 		{
 			var confirmText:String = mode == SAVE_FILE ? 'Save here' : 'Select this folder';
-			confirmButton = new BrowserButton(W / 2 - 150, footerY, 300, 56, confirmText, 0xFF2E7D32, confirm, cam, this);
+
+			confirmButton = new BrowserButton(
+				W / 2 - 150,
+				footerY,
+				300,
+				56,
+				confirmText,
+				0xFF2E7D32,
+				confirm,
+				cam,
+				this
+			);
+
 			buttons.push(confirmButton);
 		}
 
-		buttons.push(new BrowserButton(W - 220, footerY, 200, 56, 'Cancel', 0xFF8E2A2A, cancel, cam, this));
+		buttons.push(new BrowserButton(
+			W - 220,
+			footerY,
+			200,
+			56,
+			'Cancel',
+			0xFF8E2A2A,
+			cancel,
+			cam,
+			this
+		));
 
 		var start:String = lastDirectory;
-		if (start == null || !isDirectory(start)) start = isDirectory(savesDir) && mode == SAVE_FILE ? savesDir : gameDir;
+
+		if (start == null || !isDirectory(start))
+			start = isDirectory(savesDir) && mode == SAVE_FILE ? savesDir : gameDir;
+
 		navigate(start);
 	}
 
 	function normalize(path:String):String
 	{
 		if (path == null) return '/';
+
 		path = path.replace('\\', '/');
-		while (path.length > 1 && path.endsWith('/')) path = path.substr(0, path.length - 1);
+
+		while (path.length > 1 && path.endsWith('/'))
+			path = path.substr(0, path.length - 1);
+
 		return path;
 	}
 
@@ -232,17 +314,26 @@ class MobileFileBrowser extends FlxSubState
 
 	function matchesExtension(name:String):Bool
 	{
-		if (showAll || extensions.length < 1) return true;
+		if (showAll || extensions.length < 1)
+			return true;
+
 		var lower:String = name.toLowerCase();
+
 		for (ext in extensions)
-			if (lower.endsWith('.' + ext)) return true;
+		{
+			if (lower.endsWith('.' + ext))
+				return true;
+		}
+
 		return false;
 	}
 
 	function navigate(dir:String):Void
 	{
 		dir = normalize(dir);
+
 		var listing:Array<String> = null;
+
 		try
 		{
 			listing = FileSystem.readDirectory(dir);
@@ -261,19 +352,34 @@ class MobileFileBrowser extends FlxSubState
 
 		var folders:Array<String> = [];
 		var files:Array<String> = [];
+
 		for (name in listing)
 		{
 			var full:String = (dir == '/' ? '' : dir) + '/' + name;
-			if (isDirectory(full)) folders.push(name);
-			else if (mode != PICK_DIRECTORY && matchesExtension(name)) files.push(name);
+
+			if (isDirectory(full))
+				folders.push(name);
+			else if (mode != PICK_DIRECTORY && matchesExtension(name))
+				files.push(name);
 		}
 
-		folders.sort(function(a:String, b:String):Int return a.toLowerCase() < b.toLowerCase() ? -1 : 1);
-		files.sort(function(a:String, b:String):Int return a.toLowerCase() < b.toLowerCase() ? -1 : 1);
+		folders.sort(function(a:String, b:String):Int
+		{
+			return a.toLowerCase() < b.toLowerCase() ? -1 : 1;
+		});
+
+		files.sort(function(a:String, b:String):Int
+		{
+			return a.toLowerCase() < b.toLowerCase() ? -1 : 1;
+		});
 
 		entries = [];
-		for (name in folders) entries.push({name: name, isDir: true});
-		for (name in files) entries.push({name: name, isDir: false});
+
+		for (name in folders)
+			entries.push({name: name, isDir: true});
+
+		for (name in files)
+			entries.push({name: name, isDir: false});
 
 		scroll = 0;
 		refreshRows();
@@ -281,16 +387,24 @@ class MobileFileBrowser extends FlxSubState
 
 	function goUp():Void
 	{
-		if (currentDir == '/' || currentDir.length < 2) return;
+		if (currentDir == '/' || currentDir.length < 2)
+			return;
+
 		var parent:String = Path.directory(currentDir);
-		if (parent == null || parent.length < 1) parent = '/';
+
+		if (parent == null || parent.length < 1)
+			parent = '/';
+
 		navigate(parent);
 	}
 
 	function toggleAllFiles():Void
 	{
 		showAll = !showAll;
-		if (allFilesButton != null) allFilesButton.setText(showAll ? 'All files: ON' : 'All files: OFF');
+
+		if (allFilesButton != null)
+			allFilesButton.setText(showAll ? 'All files: ON' : 'All files: OFF');
+
 		navigate(currentDir);
 	}
 
@@ -302,12 +416,14 @@ class MobileFileBrowser extends FlxSubState
 	function refreshRows():Void
 	{
 		scroll = Math.max(0, Math.min(scroll, maxScroll()));
+
 		var first:Int = Std.int(scroll / ROW_HEIGHT);
 		var shift:Float = scroll - first * ROW_HEIGHT;
 
 		for (i in 0...rowBgs.length)
 		{
 			var index:Int = first + i;
+
 			var rowBg:FlxSprite = rowBgs[i];
 			var rowText:FlxText = rowTexts[i];
 
@@ -319,12 +435,17 @@ class MobileFileBrowser extends FlxSubState
 			}
 
 			var entry = entries[index];
+
 			var y:Float = listTop + i * ROW_HEIGHT - shift;
+
 			rowBg.y = y;
 			rowText.y = y + 9;
+
 			rowBg.visible = true;
 			rowText.visible = true;
+
 			rowBg.color = (index % 2 == 0) ? 0xFFFFFFFF : 0xFFC8C8D8;
+
 			rowText.text = entry.isDir ? '[ ] ' + entry.name : entry.name;
 			rowText.color = entry.isDir ? 0xFFFFD54F : FlxColor.WHITE;
 		}
@@ -335,29 +456,39 @@ class MobileFileBrowser extends FlxSubState
 
 	function inList(px:Float, py:Float):Bool
 	{
-		return py >= listTop && py <= listTop + listHeight;
+		return px >= 0 && px <= FlxG.width && py >= listTop && py <= listTop + listHeight;
 	}
 
 	function buttonAt(px:Float, py:Float):BrowserButton
 	{
 		for (button in buttons)
-			if (button.hit(px, py)) return button;
+		{
+			if (button.hit(px, py))
+				return button;
+		}
+
 		return null;
 	}
 
 	function onEntry(index:Int):Void
 	{
-		if (index < 0 || index >= entries.length) return;
+		if (index < 0 || index >= entries.length)
+			return;
 
 		var entry = entries[index];
+
 		var full:String = (currentDir == '/' ? '' : currentDir) + '/' + entry.name;
+
 		if (entry.isDir)
 		{
 			navigate(full);
 			return;
 		}
 
-		if (mode == PICK_FILE) finish(full);
+		if (mode == PICK_FILE)
+		{
+			finish(full);
+		}
 		else if (mode == SAVE_FILE)
 		{
 			fileName = entry.name;
@@ -377,7 +508,9 @@ class MobileFileBrowser extends FlxSubState
 		if (mode == SAVE_FILE)
 		{
 			var full:String = (currentDir == '/' ? '' : currentDir) + '/' + fileName;
+
 			var exists:Bool = false;
+
 			try
 			{
 				exists = FileSystem.exists(full);
@@ -398,23 +531,37 @@ class MobileFileBrowser extends FlxSubState
 	function cancel():Void
 	{
 		if (finished) return;
+
 		finished = true;
 		close();
-		new FlxTimer().start(0.1, function(_) if (onCancel != null) onCancel());
+
+		new FlxTimer().start(0.1, function(_)
+		{
+			if (onCancel != null)
+				onCancel();
+		});
 	}
 
 	function finish(path:String):Void
 	{
 		if (finished) return;
+
 		finished = true;
 		close();
-		new FlxTimer().start(0.1, function(_) if (onPick != null) onPick(path));
+
+		new FlxTimer().start(0.1, function(_)
+		{
+			if (onPick != null)
+				onPick(path);
+		});
 	}
 
 	override function update(elapsed:Float):Void
 	{
 		super.update(elapsed);
-		if (finished) return;
+
+		if (finished)
+			return;
 
 		if (FlxG.keys.justPressed.ESCAPE #if android || FlxG.android.justReleased.BACK #end)
 		{
@@ -422,49 +569,64 @@ class MobileFileBrowser extends FlxSubState
 			return;
 		}
 
-		var mx:Float = FlxG.mouse.screenX;
-		var my:Float = FlxG.mouse.screenY;
-
-		if (FlxG.mouse.justPressed)
+		for (touch in FlxG.touches.list)
 		{
-			pressY = my;
-			startScroll = scroll;
-			dragging = false;
-			pressedButton = buttonAt(mx, my);
-			pressedInList = pressedButton == null && inList(mx, my);
-		}
-		else if (FlxG.mouse.pressed && pressedInList)
-		{
-			var delta:Float = my - pressY;
-			if (!dragging && Math.abs(delta) > 14) dragging = true;
-			if (dragging)
+			if (!touchActive && touch.justPressed)
 			{
-				scroll = startScroll - delta;
-				refreshRows();
-			}
-		}
+				touchActive = true;
+				activeTouchID = touch.touchPointID;
 
-		if (FlxG.mouse.wheel != 0)
-		{
-			scroll -= FlxG.mouse.wheel * ROW_HEIGHT;
-			refreshRows();
-		}
+				pressY = touch.screenY;
+				startScroll = scroll;
+				dragging = false;
 
-		if (FlxG.mouse.justReleased)
-		{
-			if (pressedButton != null)
-			{
-				if (buttonAt(mx, my) == pressedButton) pressedButton.action();
-			}
-			else if (pressedInList && !dragging && inList(mx, my))
-			{
-				var index:Int = Std.int((scroll + my - listTop) / ROW_HEIGHT);
-				onEntry(index);
+				pressedButton = buttonAt(touch.screenX, touch.screenY);
+				pressedInList = pressedButton == null && inList(touch.screenX, touch.screenY);
+
+				break;
 			}
 
-			pressedButton = null;
-			pressedInList = false;
-			dragging = false;
+			if (touchActive && touch.touchPointID == activeTouchID)
+			{
+				var mx:Float = touch.screenX;
+				var my:Float = touch.screenY;
+
+				if (touch.pressed && pressedInList)
+				{
+					var delta:Float = my - pressY;
+
+					if (!dragging && Math.abs(delta) > 14)
+						dragging = true;
+
+					if (dragging)
+					{
+						scroll = startScroll - delta;
+						refreshRows();
+					}
+				}
+
+				if (touch.justReleased)
+				{
+					if (pressedButton != null)
+					{
+						if (buttonAt(mx, my) == pressedButton)
+							pressedButton.action();
+					}
+					else if (pressedInList && !dragging && inList(mx, my))
+					{
+						var index:Int = Std.int((scroll + my - listTop) / ROW_HEIGHT);
+						onEntry(index);
+					}
+
+					pressedButton = null;
+					pressedInList = false;
+					dragging = false;
+					touchActive = false;
+					activeTouchID = -1;
+				}
+
+				break;
+			}
 		}
 	}
 
@@ -472,9 +634,12 @@ class MobileFileBrowser extends FlxSubState
 	{
 		if (cam != null)
 		{
-			if (FlxG.cameras.list.contains(cam)) FlxG.cameras.remove(cam);
+			if (FlxG.cameras.list.contains(cam))
+				FlxG.cameras.remove(cam);
+
 			cam = null;
 		}
+
 		super.destroy();
 	}
 }
