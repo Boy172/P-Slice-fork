@@ -55,7 +55,10 @@ class FileDialogHandler extends FlxBasic
 		this._dialogMode = SAVE;
 		_startUp(onComplete, onCancel, onError);
 
-		#if mobile
+		#if android
+		androidSave(fileName, dataToSave);
+		return;
+		#elseif mobile
 		mobileSave(fileName, dataToSave);
 		return;
 		#end
@@ -80,7 +83,10 @@ class FileDialogHandler extends FlxBasic
 		filter = [];
 		#end
 
-		#if mobile
+		#if android
+		androidOpen(title);
+		return;
+		#elseif mobile
 		mobileOpen(title, filter);
 		return;
 		#end
@@ -101,7 +107,10 @@ class FileDialogHandler extends FlxBasic
 		this._dialogMode = OPEN_DIRECTORY;
 		_startUp(onComplete, onCancel, onError);
 
-		#if mobile
+		#if android
+		androidDirectory();
+		return;
+		#elseif mobile
 		mobileDirectory(title);
 		return;
 		#end
@@ -115,6 +124,130 @@ class FileDialogHandler extends FlxBasic
 	public var data:String;
 	public var path:String;
 	public var completed:Bool = true;
+
+	#if android
+	function androidStaging(name:String):String
+	{
+		var safe:String = '';
+		for (i in 0...name.length)
+		{
+			var c:String = name.charAt(i);
+			safe += (~/^[A-Za-z0-9._-]$/.match(c)) ? c : '_';
+		}
+		if (safe.length < 1) safe = 'file';
+
+		var dir:String = Path.addTrailingSlash(StorageUtil.getStorageDirectory()) + 'saves/imports/';
+		try
+		{
+			if (!FileSystem.exists(dir)) FileSystem.createDirectory(dir);
+		}
+		catch(e:Dynamic) {}
+		return dir + safe;
+	}
+
+	function androidOpen(title:String):Void
+	{
+		FileDialog.openFile(Lib.current.stage.window, title == null ? 'Select a file' : title, function(paths:Array<String>, filter:FileDialogFilter):Void
+		{
+			if(paths == null || paths.length < 1 || paths[0] == null || paths[0].length < 1)
+			{
+				mobileCancelled();
+				return;
+			}
+
+			var picked:String = paths[0];
+			var local:String = picked;
+
+			if(picked.startsWith('content://'))
+			{
+				var name:String = external.android.DocumentUtil.getDisplayName(picked);
+				if(name.length < 1) name = 'imported_file';
+				local = androidStaging(name);
+				if(!external.android.DocumentUtil.copyUriToFile(picked, local))
+				{
+					trace('Failed to copy: $picked');
+					mobileFailed();
+					return;
+				}
+			}
+
+			try
+			{
+				this.data = File.getContent(local);
+			}
+			catch(e:Dynamic)
+			{
+				trace('Failed to read: $local ($e)');
+				mobileFailed();
+				return;
+			}
+
+			this.path = local;
+			this.completed = true;
+			trace('Loaded file from: $path');
+			if(onComplete != null) onComplete();
+		}, null, null, false);
+	}
+
+	function androidSave(fileName:String, dataToSave:String):Void
+	{
+		FileDialog.saveFile(Lib.current.stage.window, 'Save "$fileName"', function(picked:String, filter:FileDialogFilter):Void
+		{
+			if(picked == null || picked.length < 1)
+			{
+				mobileCancelled();
+				return;
+			}
+
+			try
+			{
+				if(picked.startsWith('content://'))
+				{
+					var temp:String = androidStaging('export_' + fileName);
+					File.saveContent(temp, dataToSave);
+					if(!external.android.DocumentUtil.copyFileToUri(temp, picked))
+					{
+						trace('Failed to write: $picked');
+						mobileFailed();
+						return;
+					}
+				}
+				else File.saveContent(picked, dataToSave);
+			}
+			catch(e:Dynamic)
+			{
+				trace('Failed to save: $picked ($e)');
+				mobileFailed();
+				return;
+			}
+
+			this.path = picked;
+			this.completed = true;
+			trace('Saved file to: $path');
+			if(onComplete != null) onComplete();
+		}, null, fileName);
+	}
+
+	function androidDirectory():Void
+	{
+		var dir:String = Path.addTrailingSlash(StorageUtil.getStorageDirectory()) + 'saves/exports';
+		try
+		{
+			if(!FileSystem.exists(dir)) FileSystem.createDirectory(dir);
+		}
+		catch(e:Dynamic)
+		{
+			trace('Failed to create: $dir ($e)');
+			mobileFailed();
+			return;
+		}
+
+		this.path = dir;
+		this.completed = true;
+		trace('Using directory: $path');
+		if(onComplete != null) onComplete();
+	}
+	#end
 
 	#if mobile
 	function mobileCancelled():Void
