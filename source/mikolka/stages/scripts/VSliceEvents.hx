@@ -143,6 +143,19 @@ class VSliceEvents extends BaseStage {
         }
     }
 
+    static var cfg:Dynamic = null;
+
+    override function create() {
+        cfg = null;
+        try {
+            var song:String = Paths.formatToSongPath(PlayState.SONG.song);
+            var raw:String = Paths.getTextFromFile('data/$song/vslice-camera.json');
+            if (raw != null && raw.trim().length > 0) cfg = Json.parse(raw);
+        } catch (e:Dynamic) {
+            cfg = null;
+        }
+    }
+
     static function readData(event:String, value1:String, value2:String):Dynamic {
         var raw:String = value1 == null ? '' : value1.trim();
         if (raw.length > 0 && raw.charAt(0) == '{') {
@@ -150,7 +163,77 @@ class VSliceEvents extends BaseStage {
                 return Json.parse(raw);
             } catch (e:Dynamic) {}
         }
+        var raw2:String = value2 == null ? '' : value2.trim();
+        if (raw.length == 0 && raw2.length > 0 && raw2.charAt(0) == '{') {
+            try {
+                return Json.parse(raw2);
+            } catch (e:Dynamic) {}
+        }
+        var pairs:Dynamic = readPairs(value1, value2);
+        if (pairs != null) return pairs;
         return readLegacy(event, value1, value2);
+    }
+
+    static function readPairs(value1:String, value2:String):Dynamic {
+        var joined:String = (value1 == null ? '' : value1) + ';' + (value2 == null ? '' : value2);
+        var tokens:Array<String> = [];
+        for (chunk in joined.split(';'))
+            for (piece in chunk.split('|'))
+                for (part in piece.split(',')) {
+                    var t:String = part.trim();
+                    if (t.length > 0) tokens.push(t);
+                }
+        if (tokens.length == 0) return null;
+
+        var data:Dynamic = {};
+        for (token in tokens) {
+            var cut:Int = token.indexOf('=');
+            if (cut < 0) cut = token.indexOf(':');
+            if (cut <= 0) return null;
+            var key:String = token.substr(0, cut).trim().toLowerCase();
+            var val:String = token.substr(cut + 1).trim();
+            if (val.length == 0 || val.toUpperCase() == 'X') continue;
+            switch (key) {
+                case 'char' | 'character' | 'target' | 'who' | 'focus':
+                    Reflect.setField(data, 'char', val);
+                    Reflect.setField(data, 'target', val);
+                case 'x' | 'offsetx' | 'offset_x' | 'posx':
+                    Reflect.setField(data, 'x', val);
+                case 'y' | 'offsety' | 'offset_y' | 'posy':
+                    Reflect.setField(data, 'y', val);
+                case 'duration' | 'dur' | 'steps' | 'time':
+                    Reflect.setField(data, 'duration', val);
+                case 'ease' | 'tween':
+                    setEase(data, val);
+                case 'easedir' | 'dir' | 'direction':
+                    Reflect.setField(data, 'easeDir', val);
+                case 'zoom' | 'scale' | 'amount':
+                    Reflect.setField(data, 'zoom', val);
+                case 'scroll' | 'speed':
+                    Reflect.setField(data, 'scroll', val);
+                default:
+                    Reflect.setField(data, key, val);
+            }
+        }
+        return data;
+    }
+
+    static function charIndex(data:Dynamic, def:Int):Int {
+        var value:Dynamic = Reflect.field(data, 'char');
+        if (value == null) return def;
+        var s:String = Std.string(value).trim().toLowerCase();
+        switch (s) {
+            case 'bf' | 'boyfriend' | 'player' | 'player1':
+                return 0;
+            case 'dad' | 'opponent' | 'enemy' | 'player2':
+                return 1;
+            case 'gf' | 'girlfriend':
+                return 2;
+            case 'position' | 'pos' | 'origin' | 'none':
+                return -1;
+        }
+        var parsed:Float = Std.parseFloat(s);
+        return Math.isNaN(parsed) ? def : Std.int(parsed);
     }
 
     static function splitValues(value:String):Array<String> {
@@ -265,7 +348,7 @@ class VSliceEvents extends BaseStage {
 
     function focusCameraEvent(value1:String, value2:String):Void {
         var data:Dynamic = readData('FocusCamera', value1, value2);
-        var char:Int = Std.int(num(data, 'char', 0));
+        var char:Int = charIndex(data, 0);
         var targetX:Float = num(data, 'x', 0);
         var targetY:Float = num(data, 'y', 0);
         var duration:Float = num(data, 'duration', 4);
@@ -273,11 +356,31 @@ class VSliceEvents extends BaseStage {
         var easeDir:String = text(data, 'easeDir', 'In');
 
         if (char >= 0 && char <= 2) {
+            if (cfg != null) {
+                if (flag(cfg, 'swapXY', false)) {
+                    var swap:Float = targetX;
+                    targetX = targetY;
+                    targetY = swap;
+                }
+                var factor:Float = num(cfg, 'offsetScale', 1);
+                targetX *= factor;
+                targetY *= factor;
+            }
             var point = game.getCameraFocusPoint(char);
             if (point == null) return;
             targetX += point.x;
             targetY += point.y;
             point.put();
+            if (cfg != null) {
+                var fix:Dynamic = Reflect.field(cfg, ['bf', 'dad', 'gf'][char]);
+                if (fix != null && Std.isOfType(fix, Array)) {
+                    var fixArr:Array<Dynamic> = cast fix;
+                    if (fixArr.length > 1) {
+                        targetX += Std.parseFloat(Std.string(fixArr[0]));
+                        targetY += Std.parseFloat(Std.string(fixArr[1]));
+                    }
+                }
+            }
         }
 
         if (ease == 'CLASSIC') {
