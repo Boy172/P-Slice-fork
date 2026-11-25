@@ -9,8 +9,6 @@ import flixel.util.FlxAxes;
 import flixel.util.FlxHorizontalAlign;
 import flixel.util.FlxVerticalAlign;
 import flixel.FlxCamera;
-import flixel.FlxState;
-import backend.ClientPrefs;
 import flixel.FlxG;
 import openfl.display.Bitmap;
 import openfl.display.BitmapData;
@@ -88,59 +86,6 @@ class FullScreenScaleMode extends BaseScaleMode
    * Singleton instance of the `FullScreenScaleMode`.
    */
   public static var instance:FullScreenScaleMode = null;
-
-  /**
-   * Estados hechos para pantalla ancha (los que usan `gameCutoutSize` / `wideScale`).
-   * Cualquier estado que NO esté en esta lista (PlayState, etc.) se muestra centrado
-   * en 16:9 con bordes negros a los dos lados, igual que con "Wide Screen Mode" desactivado.
-   * Si algún estado de la lista se ve mal, quítalo de aquí y se verá centrado.
-   */
-  public static var wideStates:Array<Class<Dynamic>> = [
-    mikolka.vslice.ui.title.TitleState,
-    mikolka.vslice.ui.MainMenuState, // también aloja a Freeplay (es un substate)
-    mikolka.vslice.ui.StoryMenuState,
-    mikolka.vslice.freeplay.FreeplayState,
-    mikolka.vslice.charSelect.CharSelectSubState,
-    states.CreditsState,
-    states.ModsMenuState,
-    options.OptionsState,
-    states.editors.ChartingState,
-    states.editors.WeekEditorState,
-    mikolka.editors.CharSelectEditor
-  ];
-
-  private static var hookAdded:Bool = false;
-
-  /**
-   * Activa o desactiva el modo ancho automáticamente según el estado que se va a crear.
-   * Se llama una sola vez (desde InitState, justo después de crear el scale mode).
-   */
-  public static function initStateHook():Void
-  {
-    if (hookAdded) return;
-    hookAdded = true;
-    FlxG.signals.preStateCreate.add(onPreStateCreate);
-  }
-
-  public static function isWideState(state:FlxState):Bool
-  {
-    for (cls in wideStates)
-      if (Std.isOfType(state, cls)) return true;
-    return false;
-  }
-
-  @:noCompletion
-  private static function onPreStateCreate(state:FlxState):Void
-  {
-    final wide:Bool = ClientPrefs.data != null && ClientPrefs.data.wideScreen && isWideState(state);
-    if (enabled != wide)
-    {
-      // Recalcula FlxG.width (1280 o ancho) y rehace la cámara por defecto,
-      // todavía antes de que el estado se cree.
-      enabled = wide;
-      FlxG.cameras.reset();
-    }
-  }
 
   /**
    * Whether fullscreen scaling is enabled.
