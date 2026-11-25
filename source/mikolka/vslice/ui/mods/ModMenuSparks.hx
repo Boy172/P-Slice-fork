@@ -1,9 +1,8 @@
 package mikolka.vslice.ui.mods;
 
 import flixel.sound.FlxSound;
-import mikolka.funkin.FlxAtlasSprite;
 
-class ModMenuSparks extends FlxAtlasSprite
+class ModMenuSparks extends ModAtlas
 {
 	static inline var SHOCK_SOUND_END_TIME:Float = (83 / 24) * 1000;
 
@@ -19,7 +18,7 @@ class ModMenuSparks extends FlxAtlasSprite
 		visible = false;
 		antialiasing = ClientPrefs.data.antialiasing;
 		startTimer();
-		onAnimationComplete.add(onDone);
+		onComplete.add(onDone);
 	}
 
 	function startTimer():Void
