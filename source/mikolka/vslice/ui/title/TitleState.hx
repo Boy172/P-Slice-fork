@@ -91,8 +91,7 @@ class TitleState extends MusicBeatState
 		logoBl.animation.play('bump');
 		logoBl.updateHitbox();
 
-		// V-Slice: la GF va al 40% del ancho (FlxG.width * 0.4) + cutout; gfPosition.x ya trae el 40% de 1280
-		gfDance = new FlxSprite(gfPosition.x + cutout_size + (FlxG.width - FlxG.initialWidth) * 0.4, gfPosition.y);
+		gfDance = new FlxSprite(gfPosition.x+cutout_size, gfPosition.y);
 		gfDance.antialiasing = VsliceOptions.ANTIALIASING;
 
 		if (VsliceOptions.SHADERS)
