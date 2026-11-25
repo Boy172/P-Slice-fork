@@ -371,6 +371,16 @@ class VSliceEvents extends BaseStage {
             targetX += point.x;
             targetY += point.y;
             point.put();
+            if (cfg != null && flag(cfg, 'pureBase', false)) {
+                switch (char) {
+                    case 0:
+                        targetX += 100;
+                        targetY += 100;
+                    case 1:
+                        targetX -= 150;
+                        targetY += 100;
+                }
+            }
             if (cfg != null) {
                 var fix:Dynamic = Reflect.field(cfg, ['bf', 'dad', 'gf'][char]);
                 if (fix != null && Std.isOfType(fix, Array)) {
@@ -403,7 +413,8 @@ class VSliceEvents extends BaseStage {
         var scaleX:Float = num(data, 'widescreenScaleX', 0);
         var scaleY:Float = num(data, 'widescreenScaleY', 0);
         var duration:Float = num(data, 'duration', 4);
-        var direct:Bool = text(data, 'mode', 'direct') == 'direct';
+        var defaultMode:String = cfg != null ? text(cfg, 'zoomMode', 'direct') : 'direct';
+        var direct:Bool = text(data, 'mode', defaultMode) == 'direct';
         var ease:String = text(data, 'ease', 'linear');
         var easeDir:String = text(data, 'easeDir', 'In');
 
