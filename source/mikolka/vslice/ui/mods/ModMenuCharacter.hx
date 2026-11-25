@@ -3,7 +3,6 @@ package mikolka.vslice.ui.mods;
 import flixel.FlxCamera;
 import flixel.addons.display.FlxRuntimeShader;
 import flixel.util.FlxColor;
-import mikolka.funkin.FlxAtlasSprite;
 import flixel.group.FlxGroup;
 
 class ModMenuCharacter
@@ -12,17 +11,6 @@ class ModMenuCharacter
 		'bf' => [0, 0],
 		'gf' => [7, -200],
 		'pinhead' => [22, -53]
-	];
-
-	static final BOUNDS:Map<String, Array<Float>> = [
-		'characters/bf' => [-226.3, -286.85, 522.75, 804.55],
-		'characters/gf' => [-217.65, -541.21, 771.65, 859.56],
-		'characters/pinhead' => [-246.15, -381.75, 690.5, 729.3],
-		'characters/empty-chair' => [-131.87, -40.55, 407.92, 692.16],
-		'foreground-wires-bottom' => [110.6, -460.7, 1213.35, 1446.5],
-		'foreground-wires-top' => [110.6, -460.7, 1213.35, 1446.5],
-		'smoke-cloud' => [-977.03, -1405.23, 1322.27, 1679.08],
-		'back-arrow' => [-28.5, 0.0, 155.9, 132.03]
 	];
 
 	static inline var PINHEAD_GF_START:Int = 561;
@@ -47,32 +35,11 @@ void main()
 	gl_FragColor = vec4(c.a, c.a, c.a, c.a);
 }";
 
-	public static function place(spr:FlxAtlasSprite, key:String, x:Float, y:Float, scale:Float, hitboxed:Bool):Void
-	{
-		var b:Array<Float> = BOUNDS.get(key);
-		if (b == null)
-		{
-			spr.setPosition(x, y);
-			return;
-		}
-
-		var px:Float = x - b[0] * scale;
-		var py:Float = y - b[1] * scale;
-
-		if (!hitboxed)
-		{
-			px += (1 - scale) * b[2] * 0.5;
-			py += (1 - scale) * b[3] * 0.5;
-		}
-
-		spr.setPosition(px, py);
-	}
-
 	public var group:FlxGroup = new FlxGroup();
 	public var isGF:Bool;
 	public var usingPinhead:Bool = false;
 	public var finished:Bool = true;
-	public var current:FlxAtlasSprite;
+	public var current:ModAtlas;
 
 	public var hasCustomWires(get, never):Bool;
 	public var useSmallWire(get, never):Bool;
@@ -81,8 +48,8 @@ void main()
 	var baseY:Float;
 	var cam:FlxCamera;
 	var id:String;
-	var normal:FlxAtlasSprite;
-	var pin:FlxAtlasSprite;
+	var normal:ModAtlas;
+	var pin:ModAtlas;
 	var playedStart:Bool = false;
 	var currentName:String = '';
 	var looping:Bool = false;
@@ -114,16 +81,17 @@ void main()
 		return usingPinhead;
 	}
 
-	function make(charId:String):FlxAtlasSprite
+	function make(charId:String):ModAtlas
 	{
-		var spr:FlxAtlasSprite = new FlxAtlasSprite(0, 0, 'vmods/characters/$charId');
-		spr.scale.set(0.7, 0.7);
+		var spr:ModAtlas = new ModAtlas(0, 0, 'vmods/characters/$charId');
 		spr.antialiasing = ClientPrefs.data.antialiasing;
 		spr.cameras = [cam];
+		spr.scale.set(0.7, 0.7);
+		spr.playAnimation('idle', true, false, false, 0);
 		var off:Array<Float> = OFFSETS.get(charId);
 		if (off == null) off = [0, 0];
-		place(spr, 'characters/$charId', baseX + off[0], baseY + off[1], 0.7, false);
-		spr.onAnimationComplete.add(onComplete);
+		spr.setPosition(baseX + off[0], baseY + off[1]);
+		spr.onComplete.add(onComplete);
 		return spr;
 	}
 
