@@ -11,7 +11,6 @@ import flixel.tweens.FlxTween;
 import flixel.util.FlxColor;
 import flixel.util.FlxTimer;
 import mikolka.compatibility.VsliceOptions;
-import mikolka.funkin.FlxAtlasSprite;
 import mikolka.funkin.custom.mobile.MobileScaleMode;
 import mikolka.vslice.ui.mods.ModMenuList;
 import mikolka.vslice.ui.title.TitleState;
@@ -54,7 +53,7 @@ class ModSelectState extends MusicBeatState
 	var enabledList:ModMenuList;
 	var flyers:Array<ModMenuItem> = [];
 
-	var backBtn:FlxAtlasSprite;
+	var backBtn:ModAtlas;
 	var backRect:Array<Float> = [0, 0, 0, 0];
 	var folderBtn:ModMenuButton;
 	var doneBtn:ModMenuButton;
@@ -65,11 +64,11 @@ class ModSelectState extends MusicBeatState
 	var gfWire:FlxSprite;
 	var bf:ModMenuCharacter;
 	var gf:ModMenuCharacter;
-	var fgTop:FlxAtlasSprite;
-	var fgBottom:FlxAtlasSprite;
+	var fgTop:ModAtlas;
+	var fgBottom:ModAtlas;
 	var smokeBF:FlxSprite;
 	var smokeGF:FlxSprite;
-	var smokeCloud:FlxAtlasSprite;
+	var smokeCloud:ModAtlas;
 	var sparks:ModMenuSparks;
 
 	var ambience:ModMenuAmbience;
@@ -140,12 +139,16 @@ class ModSelectState extends MusicBeatState
 		return s;
 	}
 
-	function atlas(px:Float, py:Float, key:String, sc:Float, cam:FlxCamera):FlxAtlasSprite
+	function atlas(px:Float, py:Float, key:String, sc:Float, cam:FlxCamera, hit:Bool, first:String, loop:Bool, playFirst:Bool):ModAtlas
 	{
-		var s:FlxAtlasSprite = new FlxAtlasSprite(px, py, 'vmods/$key');
-		s.scale.set(sc, sc);
+		var s:ModAtlas = new ModAtlas(px, py, 'vmods/$key');
 		s.antialiasing = ClientPrefs.data.antialiasing;
 		s.cameras = [cam];
+		if (first != null && playFirst) s.playAnimation(first, true, false, loop);
+		s.scale.set(sc, sc);
+		if (hit) s.updateHitbox();
+		if (first != null && !playFirst) s.playAnimation(first, true, false, loop);
+		s.setPosition(px, py);
 		return s;
 	}
 
@@ -283,8 +286,9 @@ class ModSelectState extends MusicBeatState
 
 	function buildBackButton():Void
 	{
-		backBtn = atlas(0, 0, 'back-arrow', 0.7, FlxG.camera);
-		ModMenuCharacter.place(backBtn, 'back-arrow', leftBox.x - 50 - cutX + cutX / 4, topText.y + topText.height / 2 - 43.2, 0.7, true);
+		backBtn = atlas(0, 0, 'back-arrow', 0.7, FlxG.camera, true, null, false, false);
+		backBtn.x = leftBox.x - 50 - cutX + cutX / 4;
+		backBtn.y = topText.y + topText.height / 2 - backBtn.height / 2 + 3;
 		backBtn.playAnimation('default', true, false, true);
 		add(backBtn);
 		backRect = [leftBox.x - 70 - cutX + cutX / 4, topText.y - 10, 170, topText.height + 20];
@@ -333,11 +337,9 @@ class ModSelectState extends MusicBeatState
 		bf = new ModMenuCharacter(bfX, bfY, 'bf', false, camChars);
 		add(bf.group);
 
-		fgBottom = atlas(0, 0, 'foreground-wires-bottom', 0.7, camChars);
-		ModMenuCharacter.place(fgBottom, 'foreground-wires-bottom', bfX - 144, bfY - 90, 0.7, true);
+		fgBottom = atlas(bfX - 144, bfY - 90, 'foreground-wires-bottom', 0.7, camChars, true, 'idle', true, true);
 		add(fgBottom);
-		fgTop = atlas(0, 0, 'foreground-wires-top', 0.7, camChars);
-		ModMenuCharacter.place(fgTop, 'foreground-wires-top', bfX - 144, bfY - 90, 0.7, true);
+		fgTop = atlas(bfX - 144, bfY - 90, 'foreground-wires-top', 0.7, camChars, true, 'idle', true, true);
 		add(fgTop);
 
 		smokeGF = sparrow(gfX + 70, bfY - 180, 'smoke');
@@ -360,8 +362,8 @@ class ModSelectState extends MusicBeatState
 		smokeBF.cameras = [camChars];
 		add(smokeBF);
 
-		smokeCloud = atlas(0, 0, 'smoke-cloud', 0.75, camChars);
-		ModMenuCharacter.place(smokeCloud, 'smoke-cloud', batteryX - 415, -450, 0.75, false);
+		smokeCloud = atlas(batteryX - 415, -450, 'smoke-cloud', 0.75, camChars, true, null, false, false);
+		smokeCloud.useRenderTexture = true;
 		smokeCloud.visible = false;
 		add(smokeCloud);
 
@@ -402,8 +404,8 @@ class ModSelectState extends MusicBeatState
 		gfWire.animation.play('idle');
 
 		var wire:String = bf.useSmallWire ? 'idle pinhead' : 'idle';
-		fgBottom.playAnimation(wire, true);
-		fgTop.playAnimation(wire, true);
+		fgBottom.playAnimation(wire, true, false, true);
+		fgTop.playAnimation(wire, true, false, true);
 
 		bf.play('idle');
 		gf.play('idle');
@@ -1055,7 +1057,7 @@ class ModSelectState extends MusicBeatState
 
 			smokeCloud.visible = true;
 			smokeCloud.alpha = 1;
-			smokeCloud.anim.play('', true);
+			smokeCloud.playAnimation('', true);
 			var cloudSound = Paths.sound('vmods/sounds/smoke-cloud');
 			if (cloudSound != null) FlxG.sound.play(cloudSound);
 			FlxTween.tween(smokeCloud, {alpha: 0}, 62 / 24, {
