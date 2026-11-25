@@ -4,15 +4,8 @@ package mikolka.vslice.charSelect;
 import mikolka.funkin.FlxAtlasSprite;
 class CharSelectPlayer extends FlxAtlasSprite 
 {
-  // Posición inicial (incluye el offset del cutout en pantalla ancha), como en V-Slice
-  var initialX:Float = 0;
-  var initialY:Float = 0;
-
   public function new(x:Float, y:Float)
   {
-    initialX = x;
-    initialY = y;
-
     super(x, y, null);
 
     onAnimationComplete.add(function(animLabel:String) { //? changed the hook here
@@ -58,11 +51,11 @@ class CharSelectPlayer extends FlxAtlasSprite
     switch (str)
     {
       case "bf":
-        x = initialX;
-        y = initialY;
+        x = 0;
+        y = 0;
       case "pico":
-        x = initialX;
-        y = initialY;
+        x = 0;
+        y = 0;
       case "random":
     }
   }
