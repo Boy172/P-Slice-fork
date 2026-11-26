@@ -15,6 +15,7 @@ class ModMenuSparks extends ModAtlas
 	public function new()
 	{
 		super(0, 0, 'vmods/sparks');
+		applyStageMatrix = true;
 		visible = false;
 		antialiasing = ClientPrefs.data.antialiasing;
 		startTimer();
