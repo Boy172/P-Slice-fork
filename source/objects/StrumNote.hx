@@ -9,6 +9,12 @@ class StrumNote extends FlxSprite
 {
 	public var rgbShader:RGBShaderReference;
 	public var resetAnim:Float = 0;
+	public var vslice:Bool = false;
+	public var isHeld:Void->Bool = null;
+	var confirmTimer:Float = 0;
+	var visibleSize:FlxPoint = null;
+	static inline var CONFIRM_HOLD_TIME:Float = 0.15;
+	public static inline var VSLICE_TEXTURE:String = 'noteStrumline';
 	private var noteData:Int = 0;
 	public var direction:Float = 90;
 	public var downScroll:Bool = false;
@@ -25,7 +31,7 @@ class StrumNote extends FlxSprite
 	}
 
 	public var useRGBShader:Bool = true;
-	public function new(x:Float, y:Float, leData:Int, player:Int) {
+	public function new(x:Float, y:Float, leData:Int, player:Int, ?useVSlice:Bool = false) {
 		animation = new PsychAnimationController(this);
 
 		rgbShader = new RGBShaderReference(this, Note.initializeGlobalRGBShader(leData));
@@ -58,6 +64,9 @@ class StrumNote extends FlxSprite
 		var customSkin:String = skin + Note.getNoteSkinPostfix();
 		if(Paths.fileExists('images/$customSkin.png', IMAGE)) skin = customSkin;
 
+		if(useVSlice && ClientPrefs.data.vsliceStrums && !PlayState.isPixelStage && skin == Note.defaultNoteSkin && Note.getNoteSkinPostfix() == '' && Paths.fileExists('images/' + VSLICE_TEXTURE + '.png', IMAGE))
+			skin = VSLICE_TEXTURE;
+
 		texture = skin; //Load texture and anims
 		scrollFactor.set();
 		playAnim('static');
@@ -68,7 +77,32 @@ class StrumNote extends FlxSprite
 		var lastAnim:String = null;
 		if(animation.curAnim != null) lastAnim = animation.curAnim.name;
 
-		if(PlayState.isPixelStage)
+		vslice = texture == VSLICE_TEXTURE;
+		if(vslice) useRGBShader = false;
+		else if(PlayState.SONG == null || !PlayState.SONG.disableNoteRGB) useRGBShader = true;
+		if(!useRGBShader && rgbShader != null) rgbShader.enabled = false;
+
+		if(vslice)
+		{
+			frames = Paths.getSparrowAtlas(texture);
+			var dir:String = ['Left', 'Down', 'Up', 'Right'][Std.int(Math.abs(noteData) % 4)];
+			animation.addByPrefix('static', 'static' + dir + '0', 24, false);
+			animation.addByPrefix('press', 'press' + dir + '0', 24, false);
+			animation.addByPrefix('pressed', 'press' + dir + '0', 24, false);
+			animation.addByPrefix('confirm', 'confirm' + dir + '0', 24, false);
+			animation.addByPrefix('confirm-hold', 'confirm' + dir + '0', 24, false);
+
+			antialiasing = ClientPrefs.data.antialiasing;
+			scale.set(0.7, 0.7);
+
+			var staticAnim = animation.getByName('static');
+			if(staticAnim != null && staticAnim.frames.length > 0)
+			{
+				var staticFrame = frames.frames[staticAnim.frames[0]];
+				visibleSize = FlxPoint.get(staticFrame.frame.width, staticFrame.frame.height);
+			}
+		}
+		else if(PlayState.isPixelStage)
 		{
 			loadGraphic(Paths.image('pixelUI/' + texture));
 			width = width / 4;
@@ -142,6 +176,18 @@ class StrumNote extends FlxSprite
 		}
 	}
 
+	override function updateHitbox()
+	{
+		super.updateHitbox();
+		if(vslice && visibleSize != null)
+		{
+			width = visibleSize.x * Math.abs(scale.x);
+			height = visibleSize.y * Math.abs(scale.y);
+			centerOffsets();
+			centerOrigin();
+		}
+	}
+
 	public function playerPosition()
 	{
 		// Arrow mode hitboxes require arrows to be in special place.
@@ -161,17 +207,33 @@ class StrumNote extends FlxSprite
 	}
 
 	override function update(elapsed:Float) {
-		if(resetAnim > 0) {
-			resetAnim -= elapsed;
-			if(resetAnim <= 0) {
-				playAnim('static');
-				resetAnim = 0;
+		var confirming:Bool = vslice && animation.curAnim != null && animation.curAnim.name == 'confirm' && (resetAnim > 0 || isHeld != null);
+		if(confirming) {
+			if(animation.curAnim.finished) {
+				confirmTimer += elapsed;
+				if(confirmTimer >= CONFIRM_HOLD_TIME) {
+					var held:Bool = resetAnim <= 0 && isHeld != null && isHeld();
+					confirmTimer = 0;
+					resetAnim = 0;
+					playAnim(held ? 'pressed' : 'static');
+				}
+			}
+		}
+		else {
+			confirmTimer = 0;
+			if(resetAnim > 0) {
+				resetAnim -= elapsed;
+				if(resetAnim <= 0) {
+					playAnim('static');
+					resetAnim = 0;
+				}
 			}
 		}
 		super.update(elapsed);
 	}
 
 	public function playAnim(anim:String, ?force:Bool = false) {
+		confirmTimer = 0;
 		animation.play(anim, force);
 		if(animation.curAnim != null)
 		{
