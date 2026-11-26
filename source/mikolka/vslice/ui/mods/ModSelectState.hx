@@ -35,6 +35,8 @@ class ModSelectState extends MusicBeatState
 
 	var assetsOk:Bool = true;
 	var cutX:Float = 0;
+	static final WIRES_TOP_SHIFT:FlxPoint = FlxPoint.get(573 * 0.7, 0);
+	static final WIRES_BOTTOM_SHIFT:FlxPoint = FlxPoint.get(0, 767 * 0.7);
 
 	var camLists:FlxCamera;
 	var camChars:FlxCamera;
@@ -337,9 +339,9 @@ class ModSelectState extends MusicBeatState
 		bf = new ModMenuCharacter(bfX, bfY, 'bf', false, camChars);
 		add(bf.group);
 
-		fgBottom = atlas(bfX - 144, bfY - 90, 'foreground-wires-bottom', 0.7, camChars, true, 'idle', true, true);
+		fgBottom = atlas(bfX - 144 + WIRES_BOTTOM_SHIFT.x, bfY - 90 + WIRES_BOTTOM_SHIFT.y, 'foreground-wires-bottom', 0.7, camChars, true, 'idle', true, true);
 		add(fgBottom);
-		fgTop = atlas(bfX - 144, bfY - 90, 'foreground-wires-top', 0.7, camChars, true, 'idle', true, true);
+		fgTop = atlas(bfX - 144 + WIRES_TOP_SHIFT.x, bfY - 90 + WIRES_TOP_SHIFT.y, 'foreground-wires-top', 0.7, camChars, true, 'idle', true, true);
 		add(fgTop);
 
 		smokeGF = sparrow(gfX + 70, bfY - 180, 'smoke');
