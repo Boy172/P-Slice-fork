@@ -41,6 +41,12 @@ class VSliceSubState extends BaseOptionsMenu {
 			BOOL);
 		addOption(option);
 
+		var option:Option = new Option('V-Slice strums',
+			'Uses the V-Slice receptor sprites and animations for the strums',
+			'vsliceStrums',
+			BOOL);
+		addOption(option);
+
 		var option:Option = new Option('Subtitles',
 			'If enabled, shows subtitles during songs that include them',
 			'vsliceSubtitles',
