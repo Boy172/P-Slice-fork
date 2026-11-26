@@ -307,8 +307,8 @@ class VSliceEvents extends BaseStage {
                 setIf(data, 'char', pick(a, 0));
                 if (b.length >= 3) {
                     setIf(data, 'duration', pick(b, 0));
-                    setIf(data, 'x', pick(b, 1));
-                    setIf(data, 'y', pick(b, 2));
+                    setIf(data, 'y', pick(b, 1));
+                    setIf(data, 'x', pick(b, 2));
                     setEase(data, pick(b, 3));
                 } else {
                     setIf(data, 'x', pick(a, 1));
