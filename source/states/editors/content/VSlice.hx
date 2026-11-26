@@ -341,28 +341,32 @@ class VSlice
 
 		if(isObject)
 		{
-			var keys:Array<String> = Reflect.fields(value);
-			var simple:Bool = keys.length <= 2;
+			var keys:Array<String> = mikolka.stages.scripts.VSliceEvents.orderedKeys(value);
+			var simple:Bool = true;
 			for (key in keys)
 				if(!isSimple(Reflect.field(value, key))) simple = false;
 
 			if(fullDataEvents.contains(name) || !simple)
 				return [name, haxe.Json.stringify(value), ''];
 
-			var first:String = keys.length > 0 ? Std.string(Reflect.field(value, keys[0])) : '';
-			var second:String = keys.length > 1 ? Std.string(Reflect.field(value, keys[1])) : '';
-			return [name, first, second];
+			var texts:Array<String> = [for (key in keys) fieldText(value, key, '')];
+			if(texts.length <= 2)
+				return [name, texts.length > 0 ? texts[0] : '', texts.length > 1 ? texts[1] : ''];
+			return [name, texts.join(','), ''];
 		}
 
 		if(Std.isOfType(value, Array))
 		{
 			var items:Array<Dynamic> = cast value;
-			var simple:Bool = items.length <= 2;
+			var simple:Bool = true;
 			for (item in items)
 				if(!isSimple(item)) simple = false;
 
 			if(!simple) return [name, haxe.Json.stringify(value), ''];
-			return [name, items.length > 0 ? Std.string(items[0]) : '', items.length > 1 ? Std.string(items[1]) : ''];
+			var texts:Array<String> = [for (item in items) item == null ? '' : Std.string(item)];
+			if(texts.length <= 2)
+				return [name, texts.length > 0 ? texts[0] : '', texts.length > 1 ? texts[1] : ''];
+			return [name, texts.join(','), ''];
 		}
 
 		return [name, Std.string(value), ''];
