@@ -1,5 +1,6 @@
 package backend;
 
+import openfl.geom.Matrix;
 import openfl.filters.BitmapFilter;
 import openfl.filters.ShaderFilter;
 
@@ -21,9 +22,30 @@ class PsychCamera extends FlxCamera
 		updateFade(elapsed);
 
 		flashSprite.filters = filtersEnabled ? filters : null;
+		updateShaderQuality();
 
 		updateFlashSpritePosition();
 		updateShake(elapsed);
+	}
+
+	function updateShaderQuality():Void
+	{
+		var quality:Float = ClientPrefs.data.shaderQuality / 100;
+		var hasFilters:Bool = filtersEnabled && filters != null && filters.length > 0;
+
+		if (!hasFilters || quality >= 0.995 || FlxG.game == null)
+		{
+			if (flashSprite.cacheAsBitmapMatrix != null) flashSprite.cacheAsBitmapMatrix = null;
+			return;
+		}
+
+		var scaleX:Float = Math.abs(flashSprite.scaleX * FlxG.game.scaleX) * quality;
+		var scaleY:Float = Math.abs(flashSprite.scaleY * FlxG.game.scaleY) * quality;
+		if (scaleX <= 0 || scaleY <= 0) return;
+
+		var current:Matrix = flashSprite.cacheAsBitmapMatrix;
+		if (current == null || Math.abs(current.a - scaleX) > 0.002 || Math.abs(current.d - scaleY) > 0.002)
+			flashSprite.cacheAsBitmapMatrix = new Matrix(scaleX, 0, 0, scaleY, 0, 0);
 	}
 
 	public function updateFollowDelta(?elapsed:Float = 0):Void
