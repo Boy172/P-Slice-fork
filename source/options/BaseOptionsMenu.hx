@@ -54,6 +54,9 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		DiscordClient.changePresence(rpcTitle, null);
 		#end
 
+		for (customOption in CustomSettings.optionsFor(Type.getClassName(Type.getClass(this))))
+			addOption(customOption);
+
 		bg = new FlxSprite().loadGraphic(Paths.image('menuDesat'));
 		bg.color = 0xFFea71fd;
 		bg.setGraphicSize(Std.int(bg.width * 1.175));
