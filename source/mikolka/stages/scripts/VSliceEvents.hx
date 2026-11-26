@@ -2,6 +2,7 @@
 package mikolka.stages.scripts;
 
 import haxe.Json;
+using StringTools;
 import flixel.util.FlxTimer;
 import mikolka.funkin.custom.mobile.FullScreenScaleMode;
 import objects.Character;
@@ -14,7 +15,40 @@ class VSliceEvents extends BaseStage {
     private var tempTarget:Character;
     private var tempTimer:FlxTimer;
 
-    public static final NATIVE:Array<String> = ['FocusCamera', 'ZoomCamera', 'Zoom', 'PlayAnimation', 'ScrollSpeed', 'SetHealthIcon'];
+    public static final NATIVE:Array<String> = ['FocusCamera', 'ZoomCamera', 'Zoom', 'ZoomEvent', 'PlayAnimation', 'ScrollSpeed', 'SetHealthIcon'];
+    public static final JSON_EVENTS:Array<String> = ['FocusCamera', 'ZoomCamera', 'PlayAnimation', 'ScrollSpeed', 'SetHealthIcon'];
+    static final vKey:EReg = ~/^v\d+$/;
+
+    public static function orderedKeys(data:Dynamic):Array<String> {
+        var keys:Array<String> = Reflect.fields(data);
+        var allNumbered:Bool = keys.length > 0;
+        for (key in keys)
+            if (!vKey.match(key)) allNumbered = false;
+        if (allNumbered)
+            keys.sort(function(a:String, b:String):Int return Std.parseInt(a.substr(1)) - Std.parseInt(b.substr(1)));
+        return keys;
+    }
+
+    public static function flattenValues(eventName:String, value1:String, value2:String):Array<String> {
+        if (value1 == null || JSON_EVENTS.contains(eventName)) return [value1, value2];
+        var trimmed:String = value1.trim();
+        if (trimmed.length < 2 || trimmed.charAt(0) != '{') return [value1, value2];
+        var parsed:Dynamic = null;
+        try {
+            parsed = Json.parse(trimmed);
+        } catch (e:Dynamic) {
+            return [value1, value2];
+        }
+        if (parsed == null || Type.typeof(parsed) != TObject) return [value1, value2];
+        var parts:Array<String> = [];
+        for (key in orderedKeys(parsed)) {
+            var item:Dynamic = Reflect.field(parsed, key);
+            if (item != null && !(Std.isOfType(item, String) || Std.isOfType(item, Float) || Std.isOfType(item, Bool)))
+                return [value1, value2];
+            parts.push(item == null ? '' : Std.string(item));
+        }
+        return [parts.join(','), value2 == null ? '' : value2];
+    }
 
     override function eventCalled(eventName:String, value1:String, value2:String, flValue1:Null<Float>, flValue2:Null<Float>, strumTime:Float) {
         #if js
@@ -27,7 +61,7 @@ class VSliceEvents extends BaseStage {
                 focusCameraEvent(value1, value2);
             case 'ZoomCamera':
                 zoomCameraEvent(value1, value2);
-            case 'Zoom':
+            case 'Zoom' | 'ZoomEvent':
                 zoomEvent(value1, value2);
             case 'PlayAnimation':
                 playAnimationEvent(value1, value2);
@@ -420,6 +454,12 @@ class VSliceEvents extends BaseStage {
 
         var wide = FullScreenScaleMode.wideScale;
         var scaledZoom:Float = zoom + zoom * ((wide.x - 1) * scaleX + (wide.y - 1) * scaleY);
+
+        var stageZoom:Float = cfg != null ? num(cfg, 'stageZoom', 0) : 0;
+        if (!direct && stageZoom > 0 && FlxCamera.defaultZoom > 0) {
+            scaledZoom = scaledZoom * stageZoom / FlxCamera.defaultZoom;
+            direct = true;
+        }
 
         if (ease == 'INSTANT') {
             game.tweenCameraZoom(scaledZoom, 0, direct);
