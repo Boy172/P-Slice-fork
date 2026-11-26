@@ -1772,13 +1772,24 @@ class PlayState extends MusicBeatState
 				targetAlpha = 0.35;
 		}
 
-		var babyArrow:StrumNote = new StrumNote(strumLineX, player==1 ? playerStrumLineY : strumLineY, i, player);
+		var babyArrow:StrumNote = new StrumNote(strumLineX, player==1 ? playerStrumLineY : strumLineY, i, player, true);
+		if (player == 1)
+		{
+			var strumIndex:Int = i;
+			babyArrow.isHeld = function() return controls.pressed(keysArray[strumIndex]);
+		}
 		babyArrow.downScroll = ClientPrefs.data.downScroll;
 		if (!isStoryMode && !skipArrowStartTween)
 		{
 			// babyArrow.y -= 10;
 			babyArrow.alpha = 0;
-			FlxTween.tween(babyArrow, {/*y: babyArrow.y + 10,*/ alpha: targetAlpha}, 1, {ease: FlxEase.circOut, startDelay: 0.5 + (0.2 * i)});
+			if (babyArrow.vslice)
+			{
+				babyArrow.y -= 10;
+				FlxTween.tween(babyArrow, {y: babyArrow.y + 10, alpha: targetAlpha}, 1, {ease: FlxEase.circOut, startDelay: 0.5 + (0.2 * i)});
+			}
+			else
+				FlxTween.tween(babyArrow, {/*y: babyArrow.y + 10,*/ alpha: targetAlpha}, 1, {ease: FlxEase.circOut, startDelay: 0.5 + (0.2 * i)});
 		}
 		else
 			babyArrow.alpha = targetAlpha;
