@@ -2379,6 +2379,9 @@ public function checkEventNote()
 
 public function triggerEvent(eventName:String, value1:String, value2:String, strumTime:Float)
 {
+	var flattened:Array<String> = mikolka.stages.scripts.VSliceEvents.flattenValues(eventName, value1, value2);
+	value1 = flattened[0];
+	value2 = flattened[1];
 	var flValue1:Null<Float> = Std.parseFloat(value1);
 	var flValue2:Null<Float> = Std.parseFloat(value2);
 	if (Math.isNaN(flValue1))
