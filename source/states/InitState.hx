@@ -54,6 +54,7 @@ class InitState extends MusicBeatState
 
 		trace("Loading game settings");
 		ClientPrefs.loadPrefs();
+		if (ClientPrefs.data.gameResolution != 100) backend.GameResolution.apply();
 
 		trace("Loading translations");
 		Language.reloadPhrases();
