@@ -3,6 +3,7 @@ package psychlua;
 import flixel.FlxBasic;
 import objects.Character;
 import psychlua.LuaUtils;
+import options.CustomSettings;
 import psychlua.CustomSubstate;
 
 #if LUA_ALLOWED
@@ -216,6 +217,9 @@ class HScript extends Iris
 			}
 			return LuaUtils.getModSetting(saveTag, modName);
 		});
+
+		set('getCustomSetting', function(key:String, ?fallback:Dynamic) return CustomSettings.get(key, fallback));
+		set('setCustomSetting', function(key:String, value:Dynamic) CustomSettings.set(key, value, true));
 
 		// Keyboard & Gamepads
 		set('keyboardJustPressed', function(name:String) return Reflect.getProperty(FlxG.keys.justPressed, name));
