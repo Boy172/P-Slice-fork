@@ -30,6 +30,7 @@ import mikolka.vslice.StickerSubState;
 import substates.GameOverSubstate;
 
 import psychlua.LuaUtils;
+import options.CustomSettings;
 import psychlua.LuaUtils.LuaTweenOptions;
 #if HSCRIPT_ALLOWED
 import psychlua.HScript;
@@ -1537,6 +1538,13 @@ class FunkinLua {
 			#else
 			luaTrace("setSoundPitch: Sound Pitch is not supported on this platform!", false, false, FlxColor.RED);
 			#end
+		});
+
+		addLocalCallback("getCustomSetting", function(key:String, ?fallback:Dynamic = null) {
+			return CustomSettings.get(key, fallback);
+		});
+		addLocalCallback("setCustomSetting", function(key:String, value:Dynamic) {
+			CustomSettings.set(key, value, true);
 		});
 
 		// mod settings
