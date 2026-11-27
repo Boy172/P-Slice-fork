@@ -3,6 +3,7 @@ package mikolka.vslice.components;
 import flixel.FlxSprite;
 import flixel.graphics.frames.FlxAtlasFrames;
 import flixel.group.FlxSpriteGroup;
+import flixel.util.FlxColor;
 
 class VSliceBoldText extends FlxSpriteGroup
 {
@@ -43,11 +44,34 @@ class VSliceBoldText extends FlxSpriteGroup
 	];
 
 	public var text(default, set):String;
+	public var textScale(default, set):Float = 1;
 
-	public function new(x:Float = 0, y:Float = 0, text:String = '')
+	public function new(x:Float = 0, y:Float = 0, text:String = '', textScale:Float = 1)
 	{
 		super(x, y);
+		this.textScale = textScale;
 		this.text = text;
+	}
+
+	function set_textScale(value:Float):Float
+	{
+		if (value <= 0) value = 1;
+		if (textScale == value) return value;
+		textScale = value;
+		if (text != null) rebuild();
+		return value;
+	}
+
+	public function fitTo(maxWidth:Float):Void
+	{
+		if (maxWidth <= 0 || width <= maxWidth) return;
+		textScale = textScale * (maxWidth / width);
+	}
+
+	public function setTint(value:FlxColor):Void
+	{
+		for (member in members)
+			if (member != null) member.color = value;
 	}
 
 	function set_text(value:String):String
@@ -82,13 +106,13 @@ class VSliceBoldText extends FlxSpriteGroup
 			if (char == '\n')
 			{
 				cursorX = 0;
-				cursorY += LINE_SPACING;
+				cursorY += LINE_SPACING * textScale;
 				continue;
 			}
 
 			if (char == ' ')
 			{
-				cursorX += SPACE_WIDTH;
+				cursorX += SPACE_WIDTH * textScale;
 				continue;
 			}
 
@@ -107,9 +131,17 @@ class VSliceBoldText extends FlxSpriteGroup
 			letter.updateHitbox();
 			letter.antialiasing = ClientPrefs.data.antialiasing;
 
-			var offsetY:Float = BASE_HEIGHT - letter.height;
+			var rawHeight:Float = letter.height;
+			var offsetY:Float = BASE_HEIGHT - rawHeight;
 			if (TOP_ALIGNED.indexOf(char) != -1) offsetY = 0;
-			else if (MIDDLE_ALIGNED.indexOf(char) != -1) offsetY = (BASE_HEIGHT - letter.height) / 2;
+			else if (MIDDLE_ALIGNED.indexOf(char) != -1) offsetY = (BASE_HEIGHT - rawHeight) / 2;
+			offsetY *= textScale;
+
+			if (textScale != 1)
+			{
+				letter.scale.set(textScale, textScale);
+				letter.updateHitbox();
+			}
 
 			letter.setPosition(cursorX, cursorY + offsetY);
 			cursorX += letter.width;
