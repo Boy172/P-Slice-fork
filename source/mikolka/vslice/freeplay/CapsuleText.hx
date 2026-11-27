@@ -26,7 +26,13 @@ class CapsuleText extends FlxSpriteGroup
 
   var glowColor:FlxColor = 0xFF00ccff;
 
-  static var blurShader = null;
+  static var blurShader:GaussianBlurShader = null;
+
+  public static function releaseShader():Void
+  {
+    blurShader = null;
+  }
+
   // 255, 27 normal
   // 220, 27 favourited
 
