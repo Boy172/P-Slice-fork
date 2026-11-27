@@ -68,14 +68,6 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 		option.displayFormat = '%v%';
 		addOption(option);
 
-		var option:Option = new Option('Cache Reuse',
-			'Keeps recently used images and sounds in memory so they load instantly next time.\nHigher values use more RAM. Off clears everything between screens.',
-			'cacheReuse',
-			STRING,
-			['Off', '256 MB', '384 MB', '512 MB', '768 MB', '1 GB']);
-		option.defaultValue = '384 MB';
-		addOption(option);
-
 		var option:Option = new Option('GPU Caching', //Name
 			"If checked, allows the GPU to be used for caching textures, decreasing RAM usage.\nDon't turn this on if you have a shitty Graphics Card.", //Description
 			'cacheOnGPU',
