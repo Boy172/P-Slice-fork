@@ -303,7 +303,7 @@ class PlayState extends MusicBeatState
 		
 		if (nextReloadAll)
 		{
-			CacheSystem.clearUnusedMemory();
+			CacheSystem.clearUnusedMemory(true);
 			Language.reloadPhrases();
 		}
 		nextReloadAll = false;
