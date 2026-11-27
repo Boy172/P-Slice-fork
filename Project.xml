@@ -203,9 +203,9 @@
 	<define name="SHUT_UP_LINC_LUAJIT" />
 
 	<section if="cpp">
-		<haxedef name="HXCPP_CHECK_POINTER" />
-		<haxedef name="HXCPP_STACK_LINE" />
-		<haxedef name="HXCPP_STACK_TRACE" />
+		<haxedef name="HXCPP_CHECK_POINTER" unless="MAX_SPEED" />
+		<haxedef name="HXCPP_STACK_LINE" if="debug || PROFILE_BUILD || KEEP_STACK_LINES" />
+		<haxedef name="HXCPP_STACK_TRACE" unless="MAX_SPEED" />
 		<haxedef name="HXCPP_CATCH_SEGV" />
 	</section>
 
