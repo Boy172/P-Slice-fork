@@ -70,7 +70,7 @@ class CharacterEditorState extends MusicBeatState implements PsychUIEventHandler
 	override function create()
 	{
 		CacheSystem.clearStoredMemory();
-		CacheSystem.clearUnusedMemory(true);
+		CacheSystem.clearUnusedMemory();
 
 		FlxG.sound.music.stop();
 		camEditor = initPsychCamera();
@@ -168,7 +168,7 @@ class CharacterEditorState extends MusicBeatState implements PsychUIEventHandler
 		#end
 
 		if (ClientPrefs.data.cacheOnGPU)
-			CacheSystem.clearUnusedMemory(true);
+			CacheSystem.clearUnusedMemory();
 
 		super.create();
 	}
