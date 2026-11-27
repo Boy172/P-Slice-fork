@@ -56,7 +56,7 @@ class ModsMenuState extends MusicBeatState
 		if (controls.mobileC)
 			daButton = 'B';
 		CacheSystem.clearStoredMemory();
-		CacheSystem.clearUnusedMemory(true);
+		CacheSystem.clearUnusedMemory();
 		persistentUpdate = false;
 
 		modsList = Mods.parseList();
