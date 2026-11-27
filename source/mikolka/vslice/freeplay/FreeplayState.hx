@@ -2006,6 +2006,8 @@ class FreeplayState extends MusicBeatSubstate
 		}
 		// remove and destroy freeplay camera
 		FlxG.cameras.remove(funnyCam);
+		SongMenuItem.releaseGlobalItemData();
+		CapsuleText.releaseShader();
 		instance = null;
 	}
 
