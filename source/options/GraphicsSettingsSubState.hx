@@ -43,7 +43,7 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 		addOption(option);
 
 		var option:Option = new Option('Shader Quality',
-			'Lowers the resolution used to render camera shaders.\nLower values improve performance at the cost of blurrier effects.',
+			'Lowers the resolution used to render camera shaders.\nDefault keeps the original quality. Lower values run faster but look blurrier.',
 			'shaderQuality',
 			INT);
 		option.minValue = 50;
@@ -51,12 +51,12 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 		option.changeValue = 5;
 		option.scrollSpeed = 30;
 		option.defaultValue = 100;
+		option.defaultLabel = 'Default';
 		option.displayFormat = '%v%';
 		addOption(option);
 
-		#if android
 		var option:Option = new Option('Game Resolution',
-			'Changes the resolution the game is rendered at.\nLower values improve performance, higher values give a sharper image.',
+			'Changes the resolution the game is rendered at.\nDefault keeps the original resolution. Lower values run faster, higher values look sharper.',
 			'gameResolution',
 			INT);
 		option.minValue = 35;
@@ -64,10 +64,9 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 		option.changeValue = 5;
 		option.scrollSpeed = 60;
 		option.defaultValue = 100;
+		option.defaultLabel = 'Default';
 		option.displayFormat = '%v%';
-		option.onChange = () -> backend.GameResolution.applyLater();
 		addOption(option);
-		#end
 
 		var option:Option = new Option('GPU Caching', //Name
 			"If checked, allows the GPU to be used for caching textures, decreasing RAM usage.\nDon't turn this on if you have a shitty Graphics Card.", //Description
@@ -123,12 +122,6 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 			FlxG.drawFramerate = ClientPrefs.data.framerate;
 			FlxG.updateFramerate = ClientPrefs.data.framerate;
 		}
-	}
-
-	override function destroy()
-	{
-		backend.GameResolution.applyNow();
-		super.destroy();
 	}
 
 	override function changeSelection(change:Float,usePrecision:Bool = false) 
