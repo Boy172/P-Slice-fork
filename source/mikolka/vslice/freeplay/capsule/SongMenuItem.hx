@@ -90,6 +90,13 @@ class SongMenuItem extends FlxSpriteGroup
 	static var gaussianBlur_12:GaussianBlurShader = null;
 	public static var static_hsvShader:HSVShader = null;
 
+	public static function releaseGlobalItemData()
+	{
+		static_hsvShader = null;
+		gaussianBlur = null;
+		gaussianBlur_12 = null;
+	}
+
 	public static function reloadGlobalItemData()
 	{
 		if (VsliceOptions.SHADERS)
