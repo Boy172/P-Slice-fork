@@ -6,14 +6,13 @@ import flixel.input.keyboard.FlxKey;
 import flixel.input.gamepad.FlxGamepad;
 import flixel.input.gamepad.FlxGamepadInputID;
 import flixel.input.gamepad.FlxGamepadManager;
-import objects.CheckboxThingie;
+import objects.MiniToggle;
 import objects.AttachedText;
 import options.Option;
 import backend.InputFormatter;
 import mobile.options.MobileOptionsSubState;
 import mikolka.vslice.components.FunkinBackButton;
 import mikolka.vslice.components.SwipeValueInput;
-import mikolka.vslice.components.VSliceBoldText;
 import flixel.util.FlxGradient;
 import flixel.util.FlxSpriteUtil;
 
@@ -25,12 +24,10 @@ class BaseOptionsMenu extends MusicBeatSubstate
 	private var optionsArray:Array<Option>;
 
 	private var grpOptions:FlxTypedGroup<Alphabet>;
-	private var checkboxGroup:FlxTypedGroup<CheckboxThingie>;
+	private var checkboxGroup:FlxTypedGroup<MiniToggle>;
 	private var grpTexts:FlxTypedGroup<AttachedText>;
 
-	private var rowPillsOff:Array<FlxSprite> = [];
-	private var rowPillsOn:Array<FlxSprite> = [];
-	private var grpPills:FlxTypedGroup<FlxSprite>;
+	private var selector:FlxSprite;
 	private var descBox:FlxSprite;
 	private var descText:FlxText;
 
@@ -39,11 +36,26 @@ class BaseOptionsMenu extends MusicBeatSubstate
 
 	public var bg:FlxSprite;
 
-	static inline var VSLICE_PINK:Int = 0xFFEA71FD;
-	static inline var VSLICE_YELLOW:Int = 0xFFFFE066;
-	static inline var VSLICE_PURPLE:Int = 0xCC2A0B4F;
-	static inline var PILL_HEIGHT:Int = 112;
-	static inline var PILL_Y_OFFSET:Float = -14;
+	static inline var ACCENT:FlxColor = 0xFFEA71FD;
+	static inline var BG_TOP:FlxColor = 0xFF0B0B12;
+	static inline var BG_BOTTOM:FlxColor = 0xFF1B1B29;
+	static inline var PANEL_FILL:FlxColor = 0xFF14141D;
+	static inline var PANEL_BORDER:FlxColor = 0xFF2C2C3E;
+	static inline var SELECTOR_FILL:FlxColor = 0xFF26263A;
+	static inline var TEXT_DIM:FlxColor = 0xFF9A9AB0;
+	static inline var VALUE_DIM:FlxColor = 0xFF7A7A92;
+	static inline var DESC_COLOR:FlxColor = 0xFFD6D6E6;
+	static inline var TEXT_SCALE:Float = 0.55;
+	static inline var TEXT_CENTER:Float = 42;
+	static inline var ROW_PITCH:Float = 62;
+	static inline var ROW_HEIGHT:Int = 56;
+	static inline var PANEL_TOP:Float = 108;
+	static inline var PANEL_HEIGHT:Int = 470;
+	static inline var SELECT_CENTER_Y:Float = 343;
+
+	var panelX:Float = 0;
+	var panelWidth:Float = 0;
+	var valueRight:Float = 0;
 
 	var swipe:SwipeValueInput;
 	var backButton:FunkinBackButton;
@@ -69,95 +81,85 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		for (customOption in CustomSettings.optionsFor(Type.getClassName(Type.getClass(this))))
 			addOption(customOption);
 
-		bg = new FlxSprite().loadGraphic(Paths.image('menuBG'));
-		bg.color = VSLICE_PINK;
-		bg.setGraphicSize(Std.int(bg.width * 1.1));
-		bg.updateHitbox();
-		bg.screenCenter();
-		bg.antialiasing = ClientPrefs.data.antialiasing;
+		bg = FlxGradient.createGradientFlxSprite(FlxG.width, FlxG.height, [BG_TOP, BG_BOTTOM]);
+		bg.scrollFactor.set();
 		add(bg);
 
-		var pillMargin:Float = Math.max(MobileScaleMode.gameCutoutSize.x / 2, 0) + 60;
-		grpPills = new FlxTypedGroup<FlxSprite>();
-		add(grpPills);
-		for (i in 0...optionsArray.length)
-		{
-			var off:FlxSprite = makeRowPill(Std.int(FlxG.width - pillMargin * 2), VSLICE_PURPLE, 0x99FFFFFF);
-			off.x = pillMargin;
-			var on:FlxSprite = makeRowPill(Std.int(FlxG.width - pillMargin * 2), VSLICE_YELLOW, FlxColor.WHITE);
-			on.x = pillMargin;
-			on.visible = false;
-			rowPillsOff.push(off);
-			rowPillsOn.push(on);
-			grpPills.add(off);
-			grpPills.add(on);
-		}
+		panelX = Math.max(MobileScaleMode.gameCutoutSize.x / 2, 0) + 80;
+		panelWidth = FlxG.width - panelX * 2;
+		valueRight = panelX + panelWidth - 44;
 
-		// avoids lagspikes while scrolling through menus!
+		var panel:FlxSprite = makePanel(Std.int(panelWidth), PANEL_HEIGHT);
+		panel.setPosition(panelX, PANEL_TOP);
+		add(panel);
+
+		selector = new FlxSprite(panelX + 12, SELECT_CENTER_Y - ROW_HEIGHT / 2);
+		selector.makeGraphic(Std.int(panelWidth - 24), ROW_HEIGHT, FlxColor.TRANSPARENT, true);
+		FlxSpriteUtil.drawRoundRect(selector, 0, 0, selector.width, ROW_HEIGHT, 26, 26, SELECTOR_FILL);
+		FlxSpriteUtil.drawRoundRect(selector, 14, 14, 5, ROW_HEIGHT - 28, 5, 5, ACCENT);
+		selector.antialiasing = ClientPrefs.data.antialiasing;
+		selector.scrollFactor.set();
+		add(selector);
+
 		grpOptions = new FlxTypedGroup<Alphabet>();
 		add(grpOptions);
 
 		grpTexts = new FlxTypedGroup<AttachedText>();
 		add(grpTexts);
 
-		checkboxGroup = new FlxTypedGroup<CheckboxThingie>();
+		checkboxGroup = new FlxTypedGroup<MiniToggle>();
 		add(checkboxGroup);
 
-		var headerShade:FlxSprite = FlxGradient.createGradientFlxSprite(FlxG.width, 130, [0xF2000000, 0x00000000]);
-		headerShade.scrollFactor.set();
-		add(headerShade);
-
-		var descMargin:Float = Math.max(MobileScaleMode.gameCutoutSize.x / 2, 0) + 60;
-		descBox = new FlxSprite(descMargin, 586);
-		descBox.makeGraphic(Std.int(FlxG.width - descMargin * 2), 112, FlxColor.TRANSPARENT, true);
-		FlxSpriteUtil.drawRoundRect(descBox, 2, 2, descBox.width - 4, 108, 40, 40, VSLICE_PURPLE, {thickness: 4, color: FlxColor.WHITE});
-		descBox.antialiasing = ClientPrefs.data.antialiasing;
-		descBox.scrollFactor.set();
-		add(descBox);
-
-		var titleText:VSliceBoldText = new VSliceBoldText(descMargin + 10, 22, title, 0.9);
-		titleText.fitTo(FlxG.width - descMargin * 2 - 20);
+		var titleText:FlxText = new FlxText(panelX, 36, panelWidth, title.toUpperCase(), 40);
+		titleText.setFormat(Paths.font("vcr.ttf"), 40, FlxColor.WHITE, LEFT);
 		titleText.scrollFactor.set();
 		add(titleText);
 
-		var txtWidthOffset:Float = Math.max(MobileScaleMode.gameCutoutSize.x / 2,50);
+		if (title != '')
+		{
+			var titleBar:FlxSprite = new FlxSprite(panelX, 90).makeGraphic(56, 4, ACCENT);
+			titleBar.scrollFactor.set();
+			add(titleBar);
+		}
 
-		descText = new FlxText(txtWidthOffset + 70, 600, FlxG.width - (txtWidthOffset * 2) - 140, "", 28);
-		descText.setFormat(Paths.font("vcr.ttf"), 28, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+		descBox = makePanel(Std.int(panelWidth), 96);
+		descBox.setPosition(panelX, 600);
+		add(descBox);
+
+		descText = new FlxText(panelX + 30, 600, panelWidth - 60, "", 22);
+		descText.setFormat(Paths.font("vcr.ttf"), 22, DESC_COLOR, CENTER);
 		descText.scrollFactor.set();
-		descText.borderSize = 2;
 		add(descText);
 
-		var cutoutSize = MobileScaleMode.gameCutoutSize.x / 2;
+		var rowX:Float = panelX + 56;
 		for (i in 0...optionsArray.length)
 		{
-			var optionText:Alphabet = new Alphabet(cutoutSize+220, 260, optionsArray[i].name, false);
+			var optionText:Alphabet = new Alphabet(rowX, SELECT_CENTER_Y - TEXT_CENTER * TEXT_SCALE, optionsArray[i].name, false);
+			optionText.setScale(TEXT_SCALE);
 			optionText.isMenuItem = true;
-			/*optionText.forceX = 300;
-				optionText.yMult = 90; */
+			optionText.distancePerItem.set(0, ROW_PITCH / 1.3);
 			optionText.targetY = i;
 			grpOptions.add(optionText);
 
 			if (optionsArray[i].type == BOOL)
 			{
-				var checkbox:CheckboxThingie = new CheckboxThingie(optionText.x - 105, optionText.y, Std.string(optionsArray[i].getValue()) == 'true');
-				checkbox.sprTracker = optionText;
-				checkbox.ID = i;
-				checkboxGroup.add(checkbox);
+				var toggle:MiniToggle = new MiniToggle(0, 0, Std.string(optionsArray[i].getValue()) == 'true');
+				toggle.sprTracker = optionText;
+				toggle.offsetX = valueRight - MiniToggle.TRACK_WIDTH - rowX;
+				toggle.offsetY = TEXT_CENTER * TEXT_SCALE - MiniToggle.TRACK_HEIGHT / 2;
+				toggle.ID = i;
+				checkboxGroup.add(toggle);
 			}
 			else
 			{
-				optionText.x -= 80;
-				optionText.startPosition.x -= 80;
-				// optionText.xAdd -= 80;
-				var valueText:AttachedText = new AttachedText('' + optionsArray[i].getValue(), optionText.width + 60);
+				var valueText:AttachedText = new AttachedText('' + optionsArray[i].getValue(), valueRight - rowX, 0, false, TEXT_SCALE);
+				valueText.alignment = RIGHT;
 				valueText.sprTracker = optionText;
 				valueText.copyAlpha = true;
 				valueText.ID = i;
 				grpTexts.add(valueText);
 				optionsArray[i].child = valueText;
 			}
-			// optionText.snapToPosition(); //Don't ignore me when i ask for not making a fucking pull request to uncomment this line ok
 			updateTextFrom(optionsArray[i]);
 		}
 
@@ -167,9 +169,9 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		#if TOUCH_CONTROLS_ALLOWED
 		addTouchPad('LEFT_FULL', 'A_B_C');
 
-		var button = new TouchZone(85, 300, 1070, 100, FlxColor.PURPLE);
+		var button = new TouchZone(panelX + 12, SELECT_CENTER_Y - ROW_HEIGHT / 2, panelWidth - 24, ROW_HEIGHT, FlxColor.PURPLE);
 
-		var scroll = new ScrollableObject(-0.008, 100, 0, FlxG.width - 200, FlxG.height, button);
+		var scroll = new ScrollableObject(-0.014, 100, 0, FlxG.width - 200, FlxG.height, button);
 		scroll.onPartialScroll.add(delta ->
 		{
 			if (!swipe.horizontal)
@@ -193,13 +195,14 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		#end
 	}
 
-	function makeRowPill(width:Int, fill:FlxColor, border:FlxColor):FlxSprite
+	function makePanel(width:Int, height:Int):FlxSprite
 	{
-		var pill:FlxSprite = new FlxSprite();
-		pill.makeGraphic(width, PILL_HEIGHT, FlxColor.TRANSPARENT, true);
-		FlxSpriteUtil.drawRoundRect(pill, 2, 2, width - 4, PILL_HEIGHT - 4, 56, 56, fill, {thickness: 4, color: border});
-		pill.antialiasing = ClientPrefs.data.antialiasing;
-		return pill;
+		var panel:FlxSprite = new FlxSprite();
+		panel.makeGraphic(width, height, FlxColor.TRANSPARENT, true);
+		FlxSpriteUtil.drawRoundRect(panel, 1, 1, width - 2, height - 2, 36, 36, PANEL_FILL, {thickness: 2, color: PANEL_BORDER});
+		panel.antialiasing = ClientPrefs.data.antialiasing;
+		panel.scrollFactor.set();
+		return panel;
 	}
 
 	function tintAlphabet(text:Alphabet, color:FlxColor)
@@ -213,27 +216,28 @@ class BaseOptionsMenu extends MusicBeatSubstate
 
 	function refreshRowStyle()
 	{
+		if (selector == null)
+			return;
 		for (num => item in grpOptions.members)
-		{
-			var selected:Bool = num == curSelected;
-			tintAlphabet(item, selected ? FlxColor.BLACK : FlxColor.WHITE);
-			rowPillsOn[num].visible = selected;
-			rowPillsOff[num].visible = !selected;
-		}
+			tintAlphabet(item, num == curSelected ? FlxColor.WHITE : TEXT_DIM);
 		for (text in grpTexts)
-			tintAlphabet(text, text.ID == curSelected ? FlxColor.BLACK : FlxColor.WHITE);
+			tintAlphabet(text, text.ID == curSelected ? ACCENT : VALUE_DIM);
 	}
 
-	function followRowPills()
+	function updateRowFade()
 	{
-		for (num => item in grpOptions.members)
+		var anchorY:Float = SELECT_CENTER_Y - TEXT_CENTER * TEXT_SCALE;
+		var panelBottom:Float = PANEL_TOP + PANEL_HEIGHT;
+		for (item in grpOptions.members)
 		{
-			var y:Float = item.y + PILL_Y_OFFSET;
-			var alpha:Float = item.alpha;
-			var off:FlxSprite = rowPillsOff[num];
-			var on:FlxSprite = rowPillsOn[num];
-			off.y = on.y = y;
-			off.alpha = on.alpha = alpha;
+			var distance:Float = Math.abs(item.y - anchorY) / ROW_PITCH;
+			var alpha:Float = distance < 1 ? 1 - distance * 0.28 : 0.72 - (distance - 1) * 0.17;
+			var center:Float = item.y + TEXT_CENTER * TEXT_SCALE;
+			var edge:Float = Math.min(center - PANEL_TOP, panelBottom - center) / (ROW_PITCH * 0.6);
+			alpha = FlxMath.bound(alpha, 0, 1) * FlxMath.bound(edge, 0, 1);
+			if (Math.abs(item.alpha - alpha) > 0.01)
+				item.alpha = alpha;
+			item.visible = alpha > 0.02;
 		}
 	}
 
@@ -294,7 +298,7 @@ class BaseOptionsMenu extends MusicBeatSubstate
 	{
 		super.update(elapsed);
 
-		followRowPills();
+		updateRowFade();
 
 		swipe.enabled = !bindingKey && !closing;
 		swipe.update(elapsed);
@@ -617,12 +621,13 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		}
 
 		var bind:AttachedText = cast option.child;
-		var attach:AttachedText = new AttachedText(text, bind.offsetX);
+		var attach:AttachedText = new AttachedText(text, bind.offsetX, bind.offsetY, false, TEXT_SCALE);
 		attach.sprTracker = bind.sprTracker;
 		attach.copyAlpha = true;
 		attach.ID = bind.ID;
 		playstationCheck(attach);
-		attach.scaleX = Math.min(1, MAX_KEYBIND_WIDTH / attach.width);
+		attach.scaleX = Math.min(TEXT_SCALE, MAX_KEYBIND_WIDTH / attach.width);
+		attach.alignment = RIGHT;
 		attach.x = bind.x;
 		attach.y = bind.y;
 
@@ -686,7 +691,7 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		if (option.defaultLabel != null && val == def)
 			text = option.defaultLabel;
 		option.text = text.replace('%v', val).replace('%d', def);
-		if (grpTexts != null && rowPillsOn.length > 0)
+		if (grpTexts != null && selector != null)
 			refreshRowStyle();
 	}
 
@@ -708,15 +713,6 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		for (num => item in grpOptions.members)
 		{
 			item.targetY = num - curSelectedPartial;
-			item.alpha = 0.6;
-			if (num == curSelected)
-				item.alpha = 1;
-		}
-		for (text in grpTexts)
-		{
-			text.alpha = 0.6;
-			if (text.ID == curSelected)
-				text.alpha = 1;
 		}
 
 		descText.y = descBox.y + (descBox.height - descText.height) / 2;
