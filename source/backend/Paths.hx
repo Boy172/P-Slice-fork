@@ -150,10 +150,16 @@ class Paths
 		return (NativeFileSystem.exists(getPath(key, type, parentFolder, false)));
 	}
 
+	inline static public function cachedFrames(graphic:FlxGraphic):FlxAtlasFrames
+		return graphic != null ? FlxAtlasFrames.findFrame(graphic) : null;
+
 	static public function getAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
 	{
 		var useMod = false;
 		var imageLoaded:FlxGraphic = image(key, parentFolder, allowGPU);
+		var reusedFrames:FlxAtlasFrames = cachedFrames(imageLoaded);
+		if (reusedFrames != null)
+			return reusedFrames;
 
 		var myXml:Dynamic = getPath('images/$key.xml', TEXT, parentFolder, true);
 
@@ -193,6 +199,9 @@ class Paths
 	inline static public function getSparrowAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
 	{
 		var imageLoaded:FlxGraphic = image(key, parentFolder, allowGPU);
+		var reusedFrames:FlxAtlasFrames = cachedFrames(imageLoaded);
+		if (reusedFrames != null)
+			return reusedFrames;
 		#if MODS_ALLOWED
 		var xmlExists:Bool = false;
 
@@ -210,6 +219,9 @@ class Paths
 	inline static public function getPackerAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
 	{
 		var imageLoaded:FlxGraphic = image(key, parentFolder, allowGPU);
+		var reusedFrames:FlxAtlasFrames = cachedFrames(imageLoaded);
+		if (reusedFrames != null)
+			return reusedFrames;
 		#if MODS_ALLOWED
 		var txtExists:Bool = false;
 
@@ -227,6 +239,9 @@ class Paths
 	inline static public function getAsepriteAtlas(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxAtlasFrames
 	{
 		var imageLoaded:FlxGraphic = image(key, parentFolder, allowGPU);
+		var reusedFrames:FlxAtlasFrames = cachedFrames(imageLoaded);
+		if (reusedFrames != null)
+			return reusedFrames;
 		#if MODS_ALLOWED
 		var json:String = modsImagesJson(key);
 		var json_content = NativeFileSystem.getContent(json);
