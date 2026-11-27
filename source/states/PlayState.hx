@@ -1955,14 +1955,18 @@ var canPause:Bool = true;
 var freezeCamera:Bool = false;
 var allowDebugKeys:Bool = true;
 
+var lastBotPlayValue:Null<Bool> = null;
+var lastScriptTotal:Int = -1;
+
 override public function update(elapsed:Float)
 {
 	if (!inCutscene && !paused && !freezeCamera)
 	{
 		FlxG.camera.followLerp = 0.04 * cameraSpeed * playbackRate;
-		var idleAnim:Bool = (boyfriend.getAnimationName().startsWith('idle')
-			|| boyfriend.getAnimationName().startsWith('danceLeft')
-			|| boyfriend.getAnimationName().startsWith('danceRight'));
+		var bfAnimName:String = boyfriend.getAnimationName();
+		var idleAnim:Bool = (bfAnimName.startsWith('idle')
+			|| bfAnimName.startsWith('danceLeft')
+			|| bfAnimName.startsWith('danceRight'));
 		if (!startingSong && !endingSong && idleAnim)
 		{
 			boyfriendIdleTime += elapsed;
@@ -2175,7 +2179,13 @@ override public function update(elapsed:Float)
 	}
 	#end
 
-	setOnScripts('botPlay', cpuControlled);
+	var scriptTotal:Int = #if LUA_ALLOWED luaArray.length #else 0 #end + #if HSCRIPT_ALLOWED hscriptArray.length #else 0 #end;
+	if (lastBotPlayValue != cpuControlled || lastScriptTotal != scriptTotal)
+	{
+		lastBotPlayValue = cpuControlled;
+		lastScriptTotal = scriptTotal;
+		setOnScripts('botPlay', cpuControlled);
+	}
 	callOnScripts('onUpdatePost', [elapsed]);
 
 	#if debug
@@ -3673,17 +3683,22 @@ private function onHintRelease(button:TouchButton):Void
 #end
 
 // Hold notes
+var keysHoldCache:Array<Bool> = [false, false, false, false];
+var keysPressCache:Array<Bool> = [false, false, false, false];
+var keysReleaseCache:Array<Bool> = [false, false, false, false];
+
 private function keysCheck():Void
 {
 	// HOLDING
-	var holdArray:Array<Bool> = [];
-	var pressArray:Array<Bool> = [];
-	var releaseArray:Array<Bool> = [];
-	for (key in keysArray)
+	var holdArray:Array<Bool> = keysHoldCache;
+	var pressArray:Array<Bool> = keysPressCache;
+	var releaseArray:Array<Bool> = keysReleaseCache;
+	for (i in 0...keysArray.length)
 	{
-		holdArray.push(controls.pressed(key));
-		pressArray.push(controls.justPressed(key));
-		releaseArray.push(controls.justReleased(key));
+		var key:String = keysArray[i];
+		holdArray[i] = controls.pressed(key);
+		pressArray[i] = controls.justPressed(key);
+		releaseArray[i] = controls.justReleased(key);
 	}
 
 	// TO DO: Find a better way to handle controller inputs, this should work for now
@@ -4324,16 +4339,16 @@ public function initHScript(file:String)
 }
 #end
 
+static final EMPTY_ARGS:Array<Dynamic> = [];
+static final DEFAULT_EXCLUDE_VALUES:Array<Dynamic> = [LuaUtils.Function_Continue];
+
 public function callOnScripts(funcToCall:String, args:Array<Dynamic> = null, ignoreStops = false, exclusions:Array<String> = null,
 		excludeValues:Array<Dynamic> = null):Dynamic
 {
-	var returnVal:String = LuaUtils.Function_Continue;
 	if (args == null)
-		args = [];
-	if (exclusions == null)
-		exclusions = [];
+		args = EMPTY_ARGS;
 	if (excludeValues == null)
-		excludeValues = [LuaUtils.Function_Continue];
+		excludeValues = DEFAULT_EXCLUDE_VALUES;
 
 	var result:Dynamic = callOnLuas(funcToCall, args, ignoreStops, exclusions, excludeValues);
 	if (result == null || excludeValues.contains(result))
@@ -4346,23 +4361,25 @@ public function callOnLuas(funcToCall:String, args:Array<Dynamic> = null, ignore
 {
 	var returnVal:String = LuaUtils.Function_Continue;
 	#if LUA_ALLOWED
+	if (luaArray.length < 1)
+		return returnVal;
 	if (args == null)
-		args = [];
-	if (exclusions == null)
-		exclusions = [];
+		args = EMPTY_ARGS;
 	if (excludeValues == null)
-		excludeValues = [LuaUtils.Function_Continue];
+		excludeValues = DEFAULT_EXCLUDE_VALUES;
 
-	var arr:Array<FunkinLua> = [];
+	var closedScripts:Array<FunkinLua> = null;
 	for (script in luaArray)
 	{
 		if (script.closed)
 		{
-			arr.push(script);
+			if (closedScripts == null)
+				closedScripts = [];
+			closedScripts.push(script);
 			continue;
 		}
 
-		if (exclusions.contains(script.scriptName))
+		if (exclusions != null && exclusions.contains(script.scriptName))
 			continue;
 
 		var myValue:Dynamic = script.call(funcToCall, args);
@@ -4378,11 +4395,15 @@ public function callOnLuas(funcToCall:String, args:Array<Dynamic> = null, ignore
 			returnVal = myValue;
 
 		if (script.closed)
-			arr.push(script);
+		{
+			if (closedScripts == null)
+				closedScripts = [];
+			closedScripts.push(script);
+		}
 	}
 
-	if (arr.length > 0)
-		for (script in arr)
+	if (closedScripts != null)
+		for (script in closedScripts)
 			luaArray.remove(script);
 	#end
 	return returnVal;
@@ -4394,36 +4415,30 @@ public function callOnHScript(funcToCall:String, args:Array<Dynamic> = null, ?ig
 	var returnVal:String = LuaUtils.Function_Continue;
 
 	#if HSCRIPT_ALLOWED
-	if (exclusions == null)
-		exclusions = new Array();
-	if (excludeValues == null)
-		excludeValues = new Array();
-	excludeValues.push(LuaUtils.Function_Continue);
-
-	var len:Int = hscriptArray.length;
-	if (len < 1)
+	if (hscriptArray.length < 1)
 		return returnVal;
 
 	for (script in hscriptArray)
 	{
 		@:privateAccess
-		if (script == null || !script.exists(funcToCall) || exclusions.contains(script.origin))
+		if (script == null || !script.exists(funcToCall) || (exclusions != null && exclusions.contains(script.origin)))
 			continue;
 
 		try
 		{
 			var callValue = script.call(funcToCall, args);
 			var myValue:Dynamic = callValue.returnValue;
+			var excluded:Bool = myValue == LuaUtils.Function_Continue || (excludeValues != null && excludeValues.contains(myValue));
 
 			if ((myValue == LuaUtils.Function_StopHScript || myValue == LuaUtils.Function_StopAll)
-				&& !excludeValues.contains(myValue)
+				&& !excluded
 				&& !ignoreStops)
 			{
 				returnVal = myValue;
 				break;
 			}
 
-			if (myValue != null && !excludeValues.contains(myValue))
+			if (myValue != null && !excluded)
 				returnVal = myValue;
 		}
 		catch (e:Dynamic)
@@ -4438,8 +4453,6 @@ public function callOnHScript(funcToCall:String, args:Array<Dynamic> = null, ?ig
 
 public function setOnScripts(variable:String, arg:Dynamic, exclusions:Array<String> = null)
 {
-	if (exclusions == null)
-		exclusions = [];
 	setOnLuas(variable, arg, exclusions);
 	setOnHScript(variable, arg, exclusions);
 }
@@ -4447,11 +4460,9 @@ public function setOnScripts(variable:String, arg:Dynamic, exclusions:Array<Stri
 public function setOnLuas(variable:String, arg:Dynamic, exclusions:Array<String> = null)
 {
 	#if LUA_ALLOWED
-	if (exclusions == null)
-		exclusions = [];
 	for (script in luaArray)
 	{
-		if (exclusions.contains(script.scriptName))
+		if (exclusions != null && exclusions.contains(script.scriptName))
 			continue;
 
 		script.set(variable, arg);
@@ -4462,11 +4473,9 @@ public function setOnLuas(variable:String, arg:Dynamic, exclusions:Array<String>
 public function setOnHScript(variable:String, arg:Dynamic, exclusions:Array<String> = null)
 {
 	#if HSCRIPT_ALLOWED
-	if (exclusions == null)
-		exclusions = [];
 	for (script in hscriptArray)
 	{
-		if (exclusions.contains(script.origin))
+		if (exclusions != null && exclusions.contains(script.origin))
 			continue;
 
 		script.set(variable, arg);
