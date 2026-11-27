@@ -9,6 +9,7 @@ import haxe.io.Path;
 import openfl.display.BitmapData;
 import openfl.system.System;
 import flixel.graphics.FlxGraphic;
+import flixel.FlxState;
 
 typedef ImageLine =
 {
@@ -50,6 +51,8 @@ class CacheSystem
 	static var assetTicks:Map<String, Int> = [];
 	static var assetContexts:Map<String, String> = [];
 	static var useTick:Int = 0;
+	static var assetFiles:Map<String, String> = [];
+	static var fileKeys:Map<String, String> = [];
 
 	static inline function currentContext():String
 		return Mods.currentModDirectory + '|' + Paths.currentLevel;
@@ -89,14 +92,63 @@ class CacheSystem
 	public static function isGraphicCached(key:String):Bool
 		return currentTrackedAssets.exists(key) && (dumpExclusions.contains(key) || assetContexts.get(key) == currentContext());
 
+	static function forgetKey(key:String):Void
+	{
+		assetContexts.remove(key);
+		assetTicks.remove(key);
+		var file:String = assetFiles.get(key);
+		if (file != null)
+		{
+			assetFiles.remove(key);
+			if (fileKeys.get(file) == key)
+				fileKeys.remove(file);
+		}
+	}
+
+	static function isGraphicShared(graphic:FlxGraphic):Bool
+	{
+		for (other in currentTrackedAssets)
+			if (other == graphic)
+				return true;
+		return false;
+	}
+
 	static function discardGraphic(key:String):Void
 	{
 		var graphic:FlxGraphic = currentTrackedAssets.get(key);
-		if (graphic != null)
-			destroyGraphic(graphic);
 		currentTrackedAssets.remove(key);
-		assetContexts.remove(key);
-		assetTicks.remove(key);
+		forgetKey(key);
+		if (graphic != null && !isGraphicShared(graphic))
+			destroyGraphic(graphic);
+	}
+
+	public static function isSongAudio(key:String):Bool
+		return key.indexOf('songs/') >= 0;
+
+	/**
+	 * Frees the audio of songs that are no longer being played.
+	 */
+	public static function releaseSongAudio():Void
+	{
+		var released:Array<String> = [];
+		for (key in currentTrackedSounds.keys())
+			if (isSongAudio(key) && !dumpExclusions.contains(key))
+				released.push(key);
+
+		for (key in released)
+		{
+			Assets.cache.clear(key);
+			currentTrackedSounds.remove(key);
+			assetTicks.remove(key);
+			localTrackedAssets.remove(key);
+		}
+	}
+
+	public static function onStateCreated(state:FlxState):Void
+	{
+		if (state is states.PlayState || state is states.LoadingState)
+			return;
+		releaseSongAudio();
 	}
 
 	/**
@@ -245,6 +297,7 @@ class CacheSystem
 
 	public static function loadBitmap(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxGraphic
 	{
+		var file:String = null;
 		if (currentTrackedAssets.exists(key))
 		{
 			if (isGraphicCached(key))
@@ -253,13 +306,46 @@ class CacheSystem
 				touch(key);
 				return currentTrackedAssets.get(key);
 			}
+
+			file = resolveTexturePath(key, parentFolder);
+			if (file != null && assetFiles.get(key) == file)
+			{
+				assetContexts.set(key, currentContext());
+				localTrackedAssets.push(key);
+				touch(key);
+				return currentTrackedAssets.get(key);
+			}
 			discardGraphic(key);
 		}
-		var bitmap = __loadBitmap(key, parentFolder);
-		return cacheBitmap(key, bitmap, allowGPU);
+
+		if (file == null)
+			file = resolveTexturePath(key, parentFolder);
+
+		if (file != null)
+		{
+			var sibling:String = fileKeys.get(file);
+			if (sibling != null && sibling != key && currentTrackedAssets.exists(sibling))
+			{
+				var shared:FlxGraphic = currentTrackedAssets.get(sibling);
+				if (shared != null && shared.bitmap != null)
+				{
+					currentTrackedAssets.set(key, shared);
+					assetContexts.set(key, currentContext());
+					assetFiles.set(key, file);
+					localTrackedAssets.push(key);
+					localTrackedAssets.push(sibling);
+					touch(key);
+					touch(sibling);
+					return shared;
+				}
+			}
+		}
+
+		var bitmap = __loadBitmap(file);
+		return cacheBitmap(key, bitmap, allowGPU, file);
 	}
 
-	public static function cacheBitmap(key:String, bitmap:BitmapData, ?allowGPU:Bool = true):FlxGraphic
+	public static function cacheBitmap(key:String, bitmap:BitmapData, ?allowGPU:Bool = true, ?file:String = null):FlxGraphic
 	{
 		if (bitmap == null)
 			return null;
@@ -303,6 +389,11 @@ class CacheSystem
 
 		currentTrackedAssets.set(key, graph);
 		assetContexts.set(key, currentContext());
+		if (file != null)
+		{
+			assetFiles.set(key, file);
+			fileKeys.set(file, key);
+		}
 		touch(key);
 		localTrackedAssets.push(key);
 		return graph;
@@ -379,6 +470,7 @@ class CacheSystem
 			for (member in FlxG.state.subState.members)
 				checkForGraphics(member);
 
+		var destroyedGfx:Array<FlxGraphic> = [];
 		for (key in currentTrackedAssets.keys())
 		{
 			// if it is not currently contained within the used local assets
@@ -387,10 +479,13 @@ class CacheSystem
 				var graphic:FlxGraphic = currentTrackedAssets.get(key);
 				if (!protectedGfx.contains(graphic))
 				{
-					destroyGraphic(graphic); // get rid of the graphic
+					if (!destroyedGfx.contains(graphic))
+					{
+						destroyedGfx.push(graphic);
+						destroyGraphic(graphic); // get rid of the graphic
+					}
 					currentTrackedAssets.remove(key); // and remove the key from local cache map
-					assetContexts.remove(key);
-					assetTicks.remove(key);
+					forgetKey(key);
 					// trace('deleted $key');
 				}
 			}
@@ -409,15 +504,18 @@ class CacheSystem
 		FlxG.bitmap.remove(graphic);
 	}
 
-	private inline static function __loadBitmap(key:String, ?parentFolder:String = null):BitmapData
+	private inline static function resolveTexturePath(key:String, ?parentFolder:String = null):String
 	{
 		// A ton of stuff uses .png internally, so we fake it for ATSC
-		var intarnalFile = Path.withoutExtension(key);
-		var file:String = getTexturePath(intarnalFile, parentFolder);
+		return getTexturePath(Path.withoutExtension(key), parentFolder);
+	}
+
+	private inline static function __loadBitmap(file:String):BitmapData
+	{
 		var bitmap = NativeFileSystem.getBitmap(file);
 		if (bitmap == null)
 		{
-			trace('Bitmap not found: $file | key: $key');
+			trace('Bitmap not found: $file');
 		}
 
 		return bitmap;
