@@ -207,6 +207,8 @@
 		<haxedef name="HXCPP_STACK_LINE" if="debug || PROFILE_BUILD || KEEP_STACK_LINES" />
 		<haxedef name="HXCPP_STACK_TRACE" unless="MAX_SPEED" />
 		<haxedef name="HXCPP_CATCH_SEGV" />
+		<haxedef name="HXCPP_GC_DYNAMIC_SIZE" />
+		<haxedef name="no-traces" if="MAX_SPEED" />
 	</section>
 
 	<section if="ios">
