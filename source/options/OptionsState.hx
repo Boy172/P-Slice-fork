@@ -3,7 +3,6 @@ package options;
 import mikolka.funkin.custom.mobile.MobileScaleMode;
 import mikolka.vslice.components.FunkinBackButton;
 import mikolka.vslice.components.TouchPadHider;
-import mikolka.vslice.components.VSliceBoldText;
 import mikolka.vslice.components.crash.UserErrorSubstate;
 import backend.StageData;
 import flixel.FlxObject;
@@ -26,10 +25,11 @@ class OptionsState extends MusicBeatState
 		#if TRANSLATIONS_ALLOWED  'Language', #end
 		#if (TOUCH_CONTROLS_ALLOWED || mobile)'Mobile Options' #end
 	];
-	private var grpOptions:FlxTypedGroup<VSliceBoldText>;
-	private var pillsOff:Array<FlxSprite> = [];
-	private var pillsOn:Array<FlxSprite> = [];
-	private var panelTitle:VSliceBoldText;
+	private var grpOptions:FlxTypedGroup<FlxText>;
+	private var selector:FlxSprite;
+	private var selectorAccent:FlxSprite;
+	private var selectorTargetY:Float = 0;
+	private var panelTitle:FlxText;
 	private var panelDescription:FlxText;
 	private static var curSelected:Int = 0;
 	private static var curSelectedPartial:Float = 0;
@@ -46,22 +46,26 @@ class OptionsState extends MusicBeatState
 	private var tapZone:TouchZone;
 	#end
 
-	static inline var PILL_X:Float = 90;
-	static inline var PILL_W:Int = 600;
-	static inline var PILL_H:Int = 78;
-	static inline var PILL_SHIFT:Float = 28;
-	static inline var TEXT_INSET:Float = 36;
-	static inline var LABEL_SCALE:Float = 0.62;
-	static inline var VSLICE_PINK:Int = 0xFFEA71FD;
-	static inline var VSLICE_YELLOW:Int = 0xFFFFE066;
-	static inline var VSLICE_PURPLE:Int = 0xCC2A0B4F;
-	static inline var LIST_SPACING:Float = 100;
-	static inline var ROW_START_Y:Float = 107;
-	static inline var FOCUS_OFFSET:Float = 7;
-	static inline var DEADZONE_TOP:Float = 75;
-	static inline var DEADZONE_HEIGHT:Float = 610;
+	static inline var ACCENT:FlxColor = 0xFFEA71FD;
+	static inline var BG_TOP:FlxColor = 0xFF0B0B12;
+	static inline var BG_BOTTOM:FlxColor = 0xFF1B1B29;
+	static inline var PANEL_FILL:FlxColor = 0xFF14141D;
+	static inline var PANEL_BORDER:FlxColor = 0xFF2C2C3E;
+	static inline var SELECTOR_FILL:FlxColor = 0xFF26263A;
+	static inline var TEXT_DIM:FlxColor = 0xFF8A8AA0;
+	static inline var DESC_COLOR:FlxColor = 0xFFD6D6E6;
+	static inline var LIST_X:Float = 90;
+	static inline var LIST_W:Int = 600;
+	static inline var ROW_H:Int = 54;
+	static inline var TEXT_INSET:Float = 40;
+	static inline var SELECT_SHIFT:Float = 14;
+	static inline var LIST_SPACING:Float = 66;
+	static inline var ROW_START_Y:Float = 120;
+	static inline var FOCUS_OFFSET:Float = 8;
+	static inline var DEADZONE_TOP:Float = 110;
+	static inline var DEADZONE_HEIGHT:Float = 560;
 	static inline var FOLLOW_LERP:Float = 0.085;
-	static inline var MIN_SCROLL_Y:Float = -75;
+	static inline var MIN_SCROLL_Y:Float = 0;
 
 	function itemLabel(option:String):String
 	{
@@ -87,14 +91,16 @@ class OptionsState extends MusicBeatState
 		}
 	}
 
-	function makePill(fill:FlxColor, border:FlxColor):FlxSprite
+	function makePanel(width:Int, height:Int, radius:Float, fill:FlxColor, ?border:FlxColor):FlxSprite
 	{
-		var pill:FlxSprite = new FlxSprite();
-		pill.makeGraphic(PILL_W, PILL_H, FlxColor.TRANSPARENT, true);
-		FlxSpriteUtil.drawRoundRect(pill, 2, 2, PILL_W - 4, PILL_H - 4, 40, 40, fill, {thickness: 3, color: border});
-		pill.antialiasing = ClientPrefs.data.antialiasing;
-		pill.cameras = [funnyCam];
-		return pill;
+		var panel:FlxSprite = new FlxSprite();
+		panel.makeGraphic(width, height, FlxColor.TRANSPARENT, true);
+		if (border != null)
+			FlxSpriteUtil.drawRoundRect(panel, 1, 1, width - 2, height - 2, radius, radius, fill, {thickness: 2, color: border});
+		else
+			FlxSpriteUtil.drawRoundRect(panel, 0, 0, width, height, radius, radius, fill);
+		panel.antialiasing = ClientPrefs.data.antialiasing;
+		return panel;
 	}
 
 	function openSelectedSubstate(label:String) {
@@ -181,79 +187,80 @@ class OptionsState extends MusicBeatState
 		DiscordClient.changePresence("Options Menu", null);
 		#end
 
-		var bg:FlxSprite = new FlxSprite().loadGraphic(Paths.image('menuBG'));
-		bg.antialiasing = ClientPrefs.data.antialiasing;
-		bg.color = VSLICE_PINK;
-		bg.setGraphicSize(Std.int(bg.width * 1.1));
-		bg.updateHitbox();
-		bg.screenCenter();
+		var bg:FlxSprite = FlxGradient.createGradientFlxSprite(FlxG.width, FlxG.height, [BG_TOP, BG_BOTTOM]);
 		bg.scrollFactor.set();
 		add(bg);
 
-		var panel:FlxSprite = new FlxSprite(740, 150);
-		panel.makeGraphic(470, 320, FlxColor.TRANSPARENT, true);
-		FlxSpriteUtil.drawRoundRect(panel, 2, 2, 466, 316, 34, 34, VSLICE_PURPLE, {thickness: 4, color: FlxColor.WHITE});
-		panel.antialiasing = ClientPrefs.data.antialiasing;
+		var panel:FlxSprite = makePanel(470, 320, 36, PANEL_FILL, PANEL_BORDER);
+		panel.setPosition(740, 150);
 		panel.scrollFactor.set();
 		add(panel);
 
-		panelTitle = new VSliceBoldText(772, 180, '', 0.7);
+		var panelBar:FlxSprite = new FlxSprite(772, 182).makeGraphic(40, 4, ACCENT);
+		panelBar.scrollFactor.set();
+		add(panelBar);
+
+		panelTitle = new FlxText(772, 198, 406, '', 36);
+		panelTitle.setFormat(Paths.font('vcr.ttf'), 36, FlxColor.WHITE, LEFT);
 		panelTitle.scrollFactor.set();
 		add(panelTitle);
 
-		panelDescription = new FlxText(772, 262, 410, '', 26);
-		panelDescription.setFormat(Paths.font('vcr.ttf'), 26, FlxColor.WHITE, LEFT);
+		panelDescription = new FlxText(772, 262, 406, '', 24);
+		panelDescription.setFormat(Paths.font('vcr.ttf'), 24, DESC_COLOR, LEFT);
 		panelDescription.scrollFactor.set();
 		add(panelDescription);
 
-		var hint:FlxText = new FlxText(772, 410, 410, #if TOUCH_CONTROLS_ALLOWED 'Tap to open' #else 'Press ENTER to open' #end, 22);
-		hint.setFormat(Paths.font('vcr.ttf'), 22, VSLICE_YELLOW, LEFT);
+		var hint:FlxText = new FlxText(772, 416, 406, #if TOUCH_CONTROLS_ALLOWED 'Tap to open' #else 'Press ENTER to open' #end, 20);
+		hint.setFormat(Paths.font('vcr.ttf'), 20, ACCENT, LEFT);
 		hint.scrollFactor.set();
 		add(hint);
 
-		for (row in 0...options.length)
-		{
-			var rowY:Float = ROW_START_Y + LIST_SPACING * row - 4;
-			var off:FlxSprite = makePill(VSLICE_PURPLE, 0x99FFFFFF);
-			off.setPosition(PILL_X, rowY);
-			var on:FlxSprite = makePill(VSLICE_YELLOW, FlxColor.WHITE);
-			on.setPosition(PILL_X, rowY);
-			on.visible = false;
-			pillsOff.push(off);
-			pillsOn.push(on);
-			add(off);
-			add(on);
-		}
+		selector = makePanel(LIST_W, ROW_H, 26, SELECTOR_FILL);
+		selector.setPosition(LIST_X, ROW_START_Y);
+		selector.cameras = [funnyCam];
+		add(selector);
 
-		grpOptions = new FlxTypedGroup<VSliceBoldText>();
+		var selectorBar:FlxSprite = new FlxSprite().makeGraphic(5, ROW_H - 28, ACCENT);
+		selectorBar.cameras = [funnyCam];
+		add(selectorBar);
+		selectorAccent = selectorBar;
+
+		grpOptions = new FlxTypedGroup<FlxText>();
 		add(grpOptions);
 
 		for (num => option in options)
 		{
-			var optionText:VSliceBoldText = new VSliceBoldText(PILL_X + TEXT_INSET, ROW_START_Y + LIST_SPACING * num, itemLabel(option), LABEL_SCALE);
-			optionText.fitTo(PILL_W - TEXT_INSET * 2 - PILL_SHIFT);
-			optionText.y = ROW_START_Y + LIST_SPACING * num - 4 + (PILL_H - optionText.height) / 2;
+			var optionText:FlxText = new FlxText(LIST_X + TEXT_INSET, 0, 0, itemLabel(option), 32);
+			optionText.setFormat(Paths.font('vcr.ttf'), 32, FlxColor.WHITE, LEFT);
+			optionText.y = ROW_START_Y + LIST_SPACING * num + (ROW_H - optionText.height) / 2;
 			optionText.cameras = [funnyCam];
 			grpOptions.add(optionText);
 		}
 
-		var headerShade:FlxSprite = FlxGradient.createGradientFlxSprite(FlxG.width, 110, [0xE6000000, 0x00000000]);
+		var headerShade:FlxSprite = FlxGradient.createGradientFlxSprite(FlxG.width, 112, [BG_TOP, 0x000B0B12]);
 		headerShade.scrollFactor.set();
 		headerShade.cameras = [funnyCam];
 		add(headerShade);
 
-		var header:VSliceBoldText = new VSliceBoldText(PILL_X, 18, 'OPTIONS', 0.95);
+		var header:FlxText = new FlxText(LIST_X, 34, 600, 'OPTIONS', 40);
+		header.setFormat(Paths.font('vcr.ttf'), 40, FlxColor.WHITE, LEFT);
 		header.scrollFactor.set();
 		header.cameras = [funnyCam];
 		add(header);
 
+		var headerBar:FlxSprite = new FlxSprite(LIST_X, 88).makeGraphic(56, 4, ACCENT);
+		headerBar.scrollFactor.set();
+		headerBar.cameras = [funnyCam];
+		add(headerBar);
+
 		changeSelection(0,true);
+		selector.y = selectorTargetY;
 		ClientPrefs.saveSettings();
 
 		#if TOUCH_CONTROLS_ALLOWED
-		tapZone = new TouchZone(90,Std.int(ROW_START_Y - 15),FlxG.width,100,FlxColor.PURPLE);
+		tapZone = new TouchZone(Std.int(LIST_X),Std.int(ROW_START_Y),LIST_W,ROW_H,FlxColor.PURPLE);
 
-		var scroll = new ScrollableObject(-0.01,100,0,FlxG.width-200,FlxG.height,tapZone);
+		var scroll = new ScrollableObject(-0.014,100,0,FlxG.width-200,FlxG.height,tapZone);
 		scroll.onPartialScroll.add(delta -> changeSelection(delta,false));
 		scroll.onFullScrollSnap.add(() ->changeSelection(0,true));
 		scroll.onTap.add(() ->{
@@ -297,20 +304,18 @@ class OptionsState extends MusicBeatState
 		}
 
 		#if TOUCH_CONTROLS_ALLOWED
-		if (tapZone != null) tapZone.y = pillsOff[curSelected].y - funnyCam.scroll.y - 11;
+		if (tapZone != null) tapZone.y = selector.y - funnyCam.scroll.y;
 		#end
 
 		var follow:Float = FlxMath.bound(elapsed * 14, 0, 1);
+		selector.y = FlxMath.lerp(selectorTargetY, selector.y, Math.exp(-elapsed * 18));
+		selectorAccent.setPosition(selector.x + 14, selector.y + 14);
 		for (num => item in grpOptions.members)
 		{
-			var targetX:Float = PILL_X + (num == curSelected ? PILL_SHIFT : 0);
-			var pillX:Float = pillsOff[num].x;
-			if (Math.abs(pillX - targetX) < 0.05)
+			var targetX:Float = LIST_X + TEXT_INSET + (num == curSelected ? SELECT_SHIFT : 0);
+			if (Math.abs(item.x - targetX) < 0.05)
 				continue;
-			pillX = FlxMath.lerp(pillX, targetX, follow);
-			pillsOff[num].x = pillX;
-			pillsOn[num].x = pillX;
-			item.x = pillX + TEXT_INSET;
+			item.x = FlxMath.lerp(item.x, targetX, follow);
 		}
 
 		if (controls.BACK) goBack();
@@ -343,18 +348,12 @@ class OptionsState extends MusicBeatState
 			curSelected = Math.round(curSelectedPartial);
 		}
 		for (num => item in grpOptions.members)
-		{
-			var selected:Bool = num == curSelected;
-			item.alpha = selected ? 1 : 0.9;
-			item.setTint(selected ? FlxColor.BLACK : FlxColor.WHITE);
-			pillsOn[num].visible = selected;
-			pillsOff[num].visible = !selected;
-		}
+			item.color = num == curSelected ? FlxColor.WHITE : TEXT_DIM;
 
-		panelTitle.textScale = 0.7;
-		panelTitle.text = itemLabel(options[curSelected]);
-		panelTitle.fitTo(410);
+		selectorTargetY = ROW_START_Y + LIST_SPACING * curSelected;
+		panelTitle.text = itemLabel(options[curSelected]).toUpperCase();
 		panelDescription.text = describe(options[curSelected]);
+		panelDescription.y = panelTitle.y + panelTitle.height + 14;
 
 		camFocus.y = ROW_START_Y - FOCUS_OFFSET + LIST_SPACING * curSelectedPartial;
 	}
