@@ -387,7 +387,7 @@ class LoadingState extends MusicBeatState
 	{
 		for (key => bitmap in requestedBitmaps)
 		{
-			if (bitmap != null && CacheSystem.cacheBitmap(originalBitmapKeys.get(key), bitmap) != null)
+			if (bitmap != null && CacheSystem.cacheBitmap(originalBitmapKeys.get(key), bitmap, true, key) != null)
 			{
 			} // trace('finished preloading image $key');
 			else
@@ -897,7 +897,7 @@ class LoadingState extends MusicBeatState
 			if (requestKey.lastIndexOf('.') < 0)
 				requestKey += '.png';
 
-			if (!CacheSystem.isGraphicCached(requestKey))
+			if (!CacheSystem.currentTrackedAssets.exists(requestKey))
 			{
 				var bitmap:BitmapData = null;
 				var file:String = Paths.getPath(requestKey, IMAGE);
