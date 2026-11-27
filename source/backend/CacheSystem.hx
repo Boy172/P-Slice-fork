@@ -48,62 +48,8 @@ class CacheSystem
 			dumpExclusions.push(key);
 	}
 
-	static var assetTicks:Map<String, Int> = [];
-	static var assetContexts:Map<String, String> = [];
-	static var useTick:Int = 0;
 	static var assetFiles:Map<String, String> = [];
 	static var fileKeys:Map<String, String> = [];
-
-	static inline function currentContext():String
-		return Mods.currentModDirectory + '|' + Paths.currentLevel;
-
-	static inline function touch(key:String):Void
-		assetTicks.set(key, ++useTick);
-
-	static function retainBudget():Float
-	{
-		var megabytes:Float = switch (ClientPrefs.data.cacheReuse)
-		{
-			case '256 MB': 256;
-			case '384 MB': 384;
-			case '512 MB': 512;
-			case '768 MB': 768;
-			case '1 GB': 1024;
-			default: 0;
-		}
-		return megabytes * 1048576;
-	}
-
-	static function graphicBytes(graphic:FlxGraphic):Float
-	{
-		if (graphic == null || graphic.bitmap == null)
-			return 0;
-		return graphic.bitmap.width * graphic.bitmap.height * 4;
-	}
-
-	static function soundBytes(sound:Sound):Float
-	{
-		if (sound == null)
-			return 0;
-		var length:Float = @:privateAccess (sound.__buffer != null && sound.__buffer.data != null ? sound.__buffer.data.length : 0);
-		return length > 0 ? length : 2097152;
-	}
-
-	public static function isGraphicCached(key:String):Bool
-		return currentTrackedAssets.exists(key) && (dumpExclusions.contains(key) || assetContexts.get(key) == currentContext());
-
-	static function forgetKey(key:String):Void
-	{
-		assetContexts.remove(key);
-		assetTicks.remove(key);
-		var file:String = assetFiles.get(key);
-		if (file != null)
-		{
-			assetFiles.remove(key);
-			if (fileKeys.get(file) == key)
-				fileKeys.remove(file);
-		}
-	}
 
 	static function isGraphicShared(graphic:FlxGraphic):Bool
 	{
@@ -113,33 +59,32 @@ class CacheSystem
 		return false;
 	}
 
-	static function discardGraphic(key:String):Void
+	static function releaseKey(key:String):Void
 	{
 		var graphic:FlxGraphic = currentTrackedAssets.get(key);
 		currentTrackedAssets.remove(key);
-		forgetKey(key);
+		var file:String = assetFiles.get(key);
+		if (file != null)
+		{
+			assetFiles.remove(key);
+			if (fileKeys.get(file) == key)
+				fileKeys.remove(file);
+		}
 		if (graphic != null && !isGraphicShared(graphic))
 			destroyGraphic(graphic);
 	}
 
-	public static function isSongAudio(key:String):Bool
-		return key.indexOf('songs/') >= 0;
-
-	/**
-	 * Frees the audio of songs that are no longer being played.
-	 */
 	public static function releaseSongAudio():Void
 	{
 		var released:Array<String> = [];
 		for (key in currentTrackedSounds.keys())
-			if (isSongAudio(key) && !dumpExclusions.contains(key))
+			if (key.indexOf('songs/') >= 0 && !dumpExclusions.contains(key))
 				released.push(key);
 
 		for (key in released)
 		{
 			Assets.cache.clear(key);
 			currentTrackedSounds.remove(key);
-			assetTicks.remove(key);
 			localTrackedAssets.remove(key);
 		}
 	}
@@ -152,53 +97,38 @@ class CacheSystem
 	}
 
 	/**
-	 * Removes graphics and sounds not contained in the local context.
-	 * Unless forced, the most recently used ones are kept (up to the
-	 * configured budget) so they can be reused without loading them again.
+	 * Removes every graphic and sound not contained in the local context.
+	 * This means, that if you've requested any cached assets in this context,
+	 * they won't be purged.
 	 */
-	public static function clearUnusedMemory(force:Bool = false)
+	public static function clearUnusedMemory()
 	{
-		var budget:Float = force ? 0 : retainBudget();
-		var candidates:Array<{key:String, tick:Int, bytes:Float, isSound:Bool}> = [];
-
-		for (key => graphic in currentTrackedAssets)
+				// clear non local assets in the tracked assets list
+		for (key in currentTrackedAssets.keys())
 		{
+			// if it is not currently contained within the used local assets
 			if (!localTrackedAssets.contains(key) && !dumpExclusions.contains(key))
-				candidates.push({key: key, tick: assetTicks.exists(key) ? assetTicks.get(key) : 0, bytes: graphicBytes(graphic), isSound: false});
+			{
+				releaseKey(key);
+			}
 		}
+		// clear all sounds that are cached
 		for (key => asset in currentTrackedSounds)
 		{
 			if (!localTrackedAssets.contains(key) && !dumpExclusions.contains(key) && asset != null)
-				candidates.push({key: key, tick: assetTicks.exists(key) ? assetTicks.get(key) : 0, bytes: soundBytes(asset), isSound: true});
-		}
-
-		if (budget > 0)
-			candidates.sort((a, b) -> b.tick - a.tick);
-
-		var retained:Float = 0;
-		var evicted:Int = 0;
-		for (candidate in candidates)
-		{
-			if (budget > 0 && retained + candidate.bytes <= budget)
 			{
-				retained += candidate.bytes;
-				continue;
+				Assets.cache.clear(key);
+				var snd = currentTrackedSounds.get(key);
+				currentTrackedSounds.remove(key);
+				// @:privateAccess(){
+				// 	snd.__buffer.data.buffer.b.clear();
+				// 	snd.__buffer.data.buffer = null;
+				// 	snd.__buffer = null;
+				// }
 			}
-
-			if (candidate.isSound)
-			{
-				Assets.cache.clear(candidate.key);
-				currentTrackedSounds.remove(candidate.key);
-				assetTicks.remove(candidate.key);
-			}
-			else
-				discardGraphic(candidate.key);
-			evicted++;
 		}
-
 		#if cpp
-		if (evicted > 0)
-			cpp.vm.Gc.compact();
+		cpp.vm.Gc.compact();
 		#end
 	}
 
@@ -297,47 +227,24 @@ class CacheSystem
 
 	public static function loadBitmap(key:String, ?parentFolder:String = null, ?allowGPU:Bool = true):FlxGraphic
 	{
-		var file:String = null;
 		if (currentTrackedAssets.exists(key))
 		{
-			if (isGraphicCached(key))
-			{
-				localTrackedAssets.push(key);
-				touch(key);
-				return currentTrackedAssets.get(key);
-			}
-
-			file = resolveTexturePath(key, parentFolder);
-			if (file != null && assetFiles.get(key) == file)
-			{
-				assetContexts.set(key, currentContext());
-				localTrackedAssets.push(key);
-				touch(key);
-				return currentTrackedAssets.get(key);
-			}
-			discardGraphic(key);
+			localTrackedAssets.push(key);
+			return currentTrackedAssets.get(key);
 		}
 
-		if (file == null)
-			file = resolveTexturePath(key, parentFolder);
-
-		if (file != null)
+		var file:String = resolveTexturePath(key, parentFolder);
+		var sibling:String = fileKeys.get(file);
+		if (sibling != null && sibling != key && currentTrackedAssets.exists(sibling))
 		{
-			var sibling:String = fileKeys.get(file);
-			if (sibling != null && sibling != key && currentTrackedAssets.exists(sibling))
+			var shared:FlxGraphic = currentTrackedAssets.get(sibling);
+			if (shared != null && shared.bitmap != null)
 			{
-				var shared:FlxGraphic = currentTrackedAssets.get(sibling);
-				if (shared != null && shared.bitmap != null)
-				{
-					currentTrackedAssets.set(key, shared);
-					assetContexts.set(key, currentContext());
-					assetFiles.set(key, file);
-					localTrackedAssets.push(key);
-					localTrackedAssets.push(sibling);
-					touch(key);
-					touch(sibling);
-					return shared;
-				}
+				currentTrackedAssets.set(key, shared);
+				assetFiles.set(key, file);
+				localTrackedAssets.push(key);
+				localTrackedAssets.push(sibling);
+				return shared;
 			}
 		}
 
@@ -349,16 +256,6 @@ class CacheSystem
 	{
 		if (bitmap == null)
 			return null;
-		if (currentTrackedAssets.exists(key))
-		{
-			if (isGraphicCached(key))
-			{
-				localTrackedAssets.push(key);
-				touch(key);
-				return currentTrackedAssets.get(key);
-			}
-			discardGraphic(key);
-		}
 		if (allowGPU && ClientPrefs.data.cacheOnGPU && bitmap?.image != null)
 		{
 			bitmap.lock(); // This does nothing on cpp
@@ -388,13 +285,11 @@ class CacheSystem
 		graph.destroyOnNoUse = false;
 
 		currentTrackedAssets.set(key, graph);
-		assetContexts.set(key, currentContext());
 		if (file != null)
 		{
 			assetFiles.set(key, file);
 			fileKeys.set(file, key);
 		}
-		touch(key);
 		localTrackedAssets.push(key);
 		return graph;
 	}
@@ -424,7 +319,6 @@ class CacheSystem
 			}
 		}
 		localTrackedAssets.push(file);
-		touch(file);
 		return currentTrackedSounds.get(file);
 	}
 
@@ -470,7 +364,6 @@ class CacheSystem
 			for (member in FlxG.state.subState.members)
 				checkForGraphics(member);
 
-		var destroyedGfx:Array<FlxGraphic> = [];
 		for (key in currentTrackedAssets.keys())
 		{
 			// if it is not currently contained within the used local assets
@@ -479,13 +372,7 @@ class CacheSystem
 				var graphic:FlxGraphic = currentTrackedAssets.get(key);
 				if (!protectedGfx.contains(graphic))
 				{
-					if (!destroyedGfx.contains(graphic))
-					{
-						destroyedGfx.push(graphic);
-						destroyGraphic(graphic); // get rid of the graphic
-					}
-					currentTrackedAssets.remove(key); // and remove the key from local cache map
-					forgetKey(key);
+					releaseKey(key);
 					// trace('deleted $key');
 				}
 			}
