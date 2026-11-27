@@ -3,6 +3,7 @@ package options;
 import mikolka.funkin.custom.mobile.MobileScaleMode;
 import mikolka.vslice.components.FunkinBackButton;
 import mikolka.vslice.components.TouchPadHider;
+import mikolka.vslice.components.VSliceBoldText;
 import mikolka.vslice.components.crash.UserErrorSubstate;
 import backend.StageData;
 import flixel.FlxObject;
@@ -25,10 +26,10 @@ class OptionsState extends MusicBeatState
 		#if TRANSLATIONS_ALLOWED  'Language', #end
 		#if (TOUCH_CONTROLS_ALLOWED || mobile)'Mobile Options' #end
 	];
-	private var grpOptions:FlxTypedGroup<FlxText>;
+	private var grpOptions:FlxTypedGroup<VSliceBoldText>;
 	private var pillsOff:Array<FlxSprite> = [];
 	private var pillsOn:Array<FlxSprite> = [];
-	private var panelTitle:FlxText;
+	private var panelTitle:VSliceBoldText;
 	private var panelDescription:FlxText;
 	private static var curSelected:Int = 0;
 	private static var curSelectedPartial:Float = 0;
@@ -50,6 +51,10 @@ class OptionsState extends MusicBeatState
 	static inline var PILL_H:Int = 78;
 	static inline var PILL_SHIFT:Float = 28;
 	static inline var TEXT_INSET:Float = 36;
+	static inline var LABEL_SCALE:Float = 0.62;
+	static inline var VSLICE_PINK:Int = 0xFFEA71FD;
+	static inline var VSLICE_YELLOW:Int = 0xFFFFE066;
+	static inline var VSLICE_PURPLE:Int = 0xCC2A0B4F;
 	static inline var LIST_SPACING:Float = 100;
 	static inline var ROW_START_Y:Float = 107;
 	static inline var FOCUS_OFFSET:Float = 7;
@@ -176,47 +181,42 @@ class OptionsState extends MusicBeatState
 		DiscordClient.changePresence("Options Menu", null);
 		#end
 
-		var bg:FlxSprite = new FlxSprite().loadGraphic(Paths.image('menuDesat'));
+		var bg:FlxSprite = new FlxSprite().loadGraphic(Paths.image('menuBG'));
 		bg.antialiasing = ClientPrefs.data.antialiasing;
-		bg.color = 0xFF8E4A82;
-		bg.setGraphicSize(Std.int(bg.width * 1.175));
+		bg.color = VSLICE_PINK;
+		bg.setGraphicSize(Std.int(bg.width * 1.1));
 		bg.updateHitbox();
-
 		bg.screenCenter();
+		bg.scrollFactor.set();
 		add(bg);
-
-		var shade:FlxSprite = FlxGradient.createGradientFlxSprite(FlxG.width, FlxG.height, [0x99000000, 0x33000000, 0x99000000]);
-		shade.scrollFactor.set();
-		add(shade);
 
 		var panel:FlxSprite = new FlxSprite(740, 150);
 		panel.makeGraphic(470, 320, FlxColor.TRANSPARENT, true);
-		FlxSpriteUtil.drawRoundRect(panel, 2, 2, 466, 316, 34, 34, 0xB3140E1E, {thickness: 3, color: 0x66FFFFFF});
+		FlxSpriteUtil.drawRoundRect(panel, 2, 2, 466, 316, 34, 34, VSLICE_PURPLE, {thickness: 4, color: FlxColor.WHITE});
 		panel.antialiasing = ClientPrefs.data.antialiasing;
 		panel.scrollFactor.set();
 		add(panel);
 
-		panelTitle = new FlxText(772, 182, 410, '', 40);
-		panelTitle.setFormat(Paths.font('vcr.ttf'), 40, 0xFFFF7AB8, LEFT);
+		panelTitle = new VSliceBoldText(772, 180, '', 0.7);
 		panelTitle.scrollFactor.set();
 		add(panelTitle);
 
-		panelDescription = new FlxText(772, 252, 410, '', 26);
+		panelDescription = new FlxText(772, 262, 410, '', 26);
 		panelDescription.setFormat(Paths.font('vcr.ttf'), 26, FlxColor.WHITE, LEFT);
 		panelDescription.scrollFactor.set();
 		add(panelDescription);
 
-		var hint:FlxText = new FlxText(772, 410, 410, 'Tap or press ENTER to open', 20);
-		hint.setFormat(Paths.font('vcr.ttf'), 20, 0xAAFFFFFF, LEFT);
+		var hint:FlxText = new FlxText(772, 410, 410, #if TOUCH_CONTROLS_ALLOWED 'Tap to open' #else 'Press ENTER to open' #end, 22);
+		hint.setFormat(Paths.font('vcr.ttf'), 22, VSLICE_YELLOW, LEFT);
 		hint.scrollFactor.set();
 		add(hint);
 
 		for (row in 0...options.length)
 		{
 			var rowY:Float = ROW_START_Y + LIST_SPACING * row - 4;
-			var off:FlxSprite = makePill(0xB3140E1E, 0x55FFFFFF);
+			var off:FlxSprite = makePill(VSLICE_PURPLE, 0x99FFFFFF);
 			off.setPosition(PILL_X, rowY);
-			var on:FlxSprite = makePill(0xF2FFFFFF, 0xFFFF4FA0);
+			var on:FlxSprite = makePill(VSLICE_YELLOW, FlxColor.WHITE);
 			on.setPosition(PILL_X, rowY);
 			on.visible = false;
 			pillsOff.push(off);
@@ -225,24 +225,24 @@ class OptionsState extends MusicBeatState
 			add(on);
 		}
 
-		grpOptions = new FlxTypedGroup<FlxText>();
+		grpOptions = new FlxTypedGroup<VSliceBoldText>();
 		add(grpOptions);
 
 		for (num => option in options)
 		{
-			var optionText:FlxText = new FlxText(PILL_X + TEXT_INSET, ROW_START_Y + LIST_SPACING * num + 15, PILL_W - TEXT_INSET * 2, itemLabel(option), 34);
-			optionText.setFormat(Paths.font('vcr.ttf'), 34, FlxColor.WHITE, LEFT);
+			var optionText:VSliceBoldText = new VSliceBoldText(PILL_X + TEXT_INSET, ROW_START_Y + LIST_SPACING * num, itemLabel(option), LABEL_SCALE);
+			optionText.fitTo(PILL_W - TEXT_INSET * 2 - PILL_SHIFT);
+			optionText.y = ROW_START_Y + LIST_SPACING * num - 4 + (PILL_H - optionText.height) / 2;
 			optionText.cameras = [funnyCam];
 			grpOptions.add(optionText);
 		}
 
-		var headerShade:FlxSprite = FlxGradient.createGradientFlxSprite(FlxG.width, 100, [0xE6000000, 0x00000000]);
+		var headerShade:FlxSprite = FlxGradient.createGradientFlxSprite(FlxG.width, 110, [0xE6000000, 0x00000000]);
 		headerShade.scrollFactor.set();
 		headerShade.cameras = [funnyCam];
 		add(headerShade);
 
-		var header:FlxText = new FlxText(PILL_X, 22, 0, 'OPTIONS', 54);
-		header.setFormat(Paths.font('vcr.ttf'), 54, FlxColor.WHITE, LEFT);
+		var header:VSliceBoldText = new VSliceBoldText(PILL_X, 18, 'OPTIONS', 0.95);
 		header.scrollFactor.set();
 		header.cameras = [funnyCam];
 		add(header);
@@ -297,14 +297,17 @@ class OptionsState extends MusicBeatState
 		}
 
 		#if TOUCH_CONTROLS_ALLOWED
-		if (tapZone != null) tapZone.y = grpOptions.members[curSelected].y - funnyCam.scroll.y - 30;
+		if (tapZone != null) tapZone.y = pillsOff[curSelected].y - funnyCam.scroll.y - 11;
 		#end
 
 		var follow:Float = FlxMath.bound(elapsed * 14, 0, 1);
 		for (num => item in grpOptions.members)
 		{
 			var targetX:Float = PILL_X + (num == curSelected ? PILL_SHIFT : 0);
-			var pillX:Float = FlxMath.lerp(pillsOff[num].x, targetX, follow);
+			var pillX:Float = pillsOff[num].x;
+			if (Math.abs(pillX - targetX) < 0.05)
+				continue;
+			pillX = FlxMath.lerp(pillX, targetX, follow);
 			pillsOff[num].x = pillX;
 			pillsOn[num].x = pillX;
 			item.x = pillX + TEXT_INSET;
@@ -342,13 +345,15 @@ class OptionsState extends MusicBeatState
 		for (num => item in grpOptions.members)
 		{
 			var selected:Bool = num == curSelected;
-			item.alpha = selected ? 1 : 0.85;
-			item.color = selected ? 0xFF1A1224 : FlxColor.WHITE;
+			item.alpha = selected ? 1 : 0.9;
+			item.setTint(selected ? FlxColor.BLACK : FlxColor.WHITE);
 			pillsOn[num].visible = selected;
 			pillsOff[num].visible = !selected;
 		}
 
+		panelTitle.textScale = 0.7;
 		panelTitle.text = itemLabel(options[curSelected]);
+		panelTitle.fitTo(410);
 		panelDescription.text = describe(options[curSelected]);
 
 		camFocus.y = ROW_START_Y - FOCUS_OFFSET + LIST_SPACING * curSelectedPartial;
