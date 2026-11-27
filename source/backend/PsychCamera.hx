@@ -22,30 +22,75 @@ class PsychCamera extends FlxCamera
 		updateFade(elapsed);
 
 		flashSprite.filters = filtersEnabled ? filters : null;
-		updateShaderQuality();
+		updateRenderScale();
 
 		updateFlashSpritePosition();
 		updateShake(elapsed);
 	}
 
-	function updateShaderQuality():Void
-	{
-		var quality:Float = ClientPrefs.data.shaderQuality / 100;
-		var hasFilters:Bool = filtersEnabled && filters != null && filters.length > 0;
+	static inline var MAX_RENDER_PIXELS:Float = 4096;
 
-		if (!hasFilters || quality >= 0.995 || FlxG.game == null)
+	var renderFrames:Int = 0;
+	var renderScaleActive:Bool = false;
+
+	function restoreRenderScale():Void
+	{
+		if (!renderScaleActive)
+			return;
+		renderScaleActive = false;
+		flashSprite.cacheAsBitmapMatrix = null;
+		flashSprite.cacheAsBitmap = false;
+	}
+
+	function updateRenderScale():Void
+	{
+		var quality:Float = ClientPrefs.data.gameResolution / 100;
+		var hasFilters:Bool = filtersEnabled && filters != null && filters.length > 0;
+		if (hasFilters)
+			quality *= ClientPrefs.data.shaderQuality / 100;
+
+		if (Math.abs(quality - 1) < 0.005)
 		{
-			if (flashSprite.cacheAsBitmapMatrix != null) flashSprite.cacheAsBitmapMatrix = null;
+			restoreRenderScale();
 			return;
 		}
 
-		var scaleX:Float = Math.abs(flashSprite.scaleX * FlxG.game.scaleX) * quality;
-		var scaleY:Float = Math.abs(flashSprite.scaleY * FlxG.game.scaleY) * quality;
-		if (scaleX <= 0 || scaleY <= 0) return;
+		if (renderFrames < 3)
+		{
+			renderFrames++;
+			return;
+		}
+
+		var world:Matrix = @:privateAccess flashSprite.__renderTransform;
+		if (world == null)
+			return;
+
+		var pixelsX:Float = Math.abs(world.a) * width + Math.abs(world.c) * height;
+		var pixelsY:Float = Math.abs(world.b) * width + Math.abs(world.d) * height;
+		var largest:Float = Math.max(pixelsX, pixelsY);
+		if (largest <= 0)
+			return;
+		if (largest * quality > MAX_RENDER_PIXELS)
+			quality = MAX_RENDER_PIXELS / largest;
 
 		var current:Matrix = flashSprite.cacheAsBitmapMatrix;
-		if (current == null || Math.abs(current.a - scaleX) > 0.002 || Math.abs(current.d - scaleY) > 0.002)
-			flashSprite.cacheAsBitmapMatrix = new Matrix(scaleX, 0, 0, scaleY, 0, 0);
+		var scaleA:Float = world.a * quality;
+		var scaleB:Float = world.b * quality;
+		var scaleC:Float = world.c * quality;
+		var scaleD:Float = world.d * quality;
+
+		if (!renderScaleActive)
+		{
+			renderScaleActive = true;
+			flashSprite.cacheAsBitmap = true;
+		}
+
+		if (current == null
+			|| Math.abs(current.a - scaleA) > 0.002
+			|| Math.abs(current.b - scaleB) > 0.002
+			|| Math.abs(current.c - scaleC) > 0.002
+			|| Math.abs(current.d - scaleD) > 0.002)
+			flashSprite.cacheAsBitmapMatrix = new Matrix(scaleA, scaleB, scaleC, scaleD, 0, 0);
 	}
 
 	public function updateFollowDelta(?elapsed:Float = 0):Void
