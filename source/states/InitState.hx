@@ -54,6 +54,7 @@ class InitState extends MusicBeatState
 
 		trace("Loading game settings");
 		ClientPrefs.loadPrefs();
+		FlxG.signals.preStateCreate.add(CacheSystem.onStateCreated);
 
 		trace("Loading translations");
 		Language.reloadPhrases();
