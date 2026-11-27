@@ -897,7 +897,7 @@ class LoadingState extends MusicBeatState
 			if (requestKey.lastIndexOf('.') < 0)
 				requestKey += '.png';
 
-			if (!CacheSystem.currentTrackedAssets.exists(requestKey))
+			if (!CacheSystem.isGraphicCached(requestKey))
 			{
 				var bitmap:BitmapData = null;
 				var file:String = Paths.getPath(requestKey, IMAGE);
