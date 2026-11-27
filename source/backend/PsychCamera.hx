@@ -1,5 +1,6 @@
 package backend;
 
+import openfl.display.Bitmap;
 import openfl.geom.Matrix;
 import openfl.filters.BitmapFilter;
 import openfl.filters.ShaderFilter;
@@ -26,24 +27,63 @@ class PsychCamera extends FlxCamera
 
 		updateFlashSpritePosition();
 		updateShake(elapsed);
+		compensateRenderScale();
 	}
 
 	static inline var MAX_RENDER_PIXELS:Float = 4096;
 
 	var renderFrames:Int = 0;
 	var renderScaleActive:Bool = false;
+	var renderScaleFrames:Int = 0;
+	var renderQuality:Float = 1;
 
 	function restoreRenderScale():Void
 	{
 		if (!renderScaleActive)
 			return;
 		renderScaleActive = false;
+		renderScaleFrames = 0;
+		renderQuality = 1;
 		flashSprite.cacheAsBitmapMatrix = null;
 		flashSprite.cacheAsBitmap = false;
 	}
 
+	function compensateRenderScale():Void
+	{
+		if (!renderScaleActive)
+			return;
+		if (renderScaleFrames < 2)
+		{
+			renderScaleFrames++;
+			return;
+		}
+
+		var cache:Bitmap = @:privateAccess flashSprite.__cacheBitmap;
+		var world:Matrix = @:privateAccess flashSprite.__renderTransform;
+		if (cache == null || world == null)
+			return;
+
+		var shown:Matrix = @:privateAccess cache.__renderTransform;
+		if (shown == null)
+			return;
+
+		var factor:Float = 1 / renderQuality - 1;
+		var parentScaleX:Float = flashSprite.scaleX != 0 ? world.a / flashSprite.scaleX : 1;
+		var parentScaleY:Float = flashSprite.scaleY != 0 ? world.d / flashSprite.scaleY : 1;
+		if (parentScaleX == 0)
+			parentScaleX = 1;
+		if (parentScaleY == 0)
+			parentScaleY = 1;
+
+		flashSprite.x += (shown.tx - world.tx) * factor / parentScaleX;
+		flashSprite.y += (shown.ty - world.ty) * factor / parentScaleY;
+	}
+
 	function updateRenderScale():Void
 	{
+		if (renderFrames < 3)
+			renderFrames++;
+
 		var quality:Float = ClientPrefs.data.gameResolution / 100;
 		var hasFilters:Bool = filtersEnabled && filters != null && filters.length > 0;
 		if (hasFilters)
@@ -56,10 +96,7 @@ class PsychCamera extends FlxCamera
 		}
 
 		if (renderFrames < 3)
-		{
-			renderFrames++;
 			return;
-		}
 
 		var world:Matrix = @:privateAccess flashSprite.__renderTransform;
 		if (world == null)
@@ -72,6 +109,8 @@ class PsychCamera extends FlxCamera
 			return;
 		if (largest * quality > MAX_RENDER_PIXELS)
 			quality = MAX_RENDER_PIXELS / largest;
+
+		renderQuality = quality;
 
 		var current:Matrix = flashSprite.cacheAsBitmapMatrix;
 		var scaleA:Float = world.a * quality;
