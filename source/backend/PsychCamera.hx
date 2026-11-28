@@ -1,7 +1,8 @@
 package backend;
 
-import openfl.display.Bitmap;
+import openfl.display.BitmapData;
 import openfl.geom.Matrix;
+import openfl.geom.Rectangle;
 import openfl.filters.BitmapFilter;
 import openfl.filters.ShaderFilter;
 
@@ -23,113 +24,140 @@ class PsychCamera extends FlxCamera
 		updateFade(elapsed);
 
 		flashSprite.filters = filtersEnabled ? filters : null;
-		updateRenderScale();
 
 		updateFlashSpritePosition();
 		updateShake(elapsed);
-		compensateRenderScale();
+		updateRenderScale();
 	}
 
 	static inline var MAX_RENDER_PIXELS:Float = 4096;
+	static inline var MIN_RENDER_QUALITY:Float = 0.1;
+	static inline var QUALITY_EPSILON:Float = 0.995;
 
 	var renderFrames:Int = 0;
 	var renderScaleActive:Bool = false;
-	var renderScaleFrames:Int = 0;
-	var renderQuality:Float = 1;
+	var renderScaleX:Float = 0;
+	var renderScaleY:Float = 0;
+	final renderBounds:Rectangle = new Rectangle();
+
+	@:access(openfl.display.DisplayObject)
+	function releaseRenderBuffers():Void
+	{
+		final sprite = flashSprite;
+		final first:BitmapData = sprite.__cacheBitmapData;
+		final second:BitmapData = sprite.__cacheBitmapData2;
+		final third:BitmapData = sprite.__cacheBitmapData3;
+
+		sprite.__cacheBitmap = null;
+		sprite.__cacheBitmapData = null;
+		sprite.__cacheBitmapData2 = null;
+		sprite.__cacheBitmapData3 = null;
+		sprite.__cacheBitmapRenderer = null;
+
+		if (first != null)
+			first.dispose();
+		if (second != null && second != first)
+			second.dispose();
+		if (third != null && third != first && third != second)
+			third.dispose();
+	}
 
 	function restoreRenderScale():Void
 	{
 		if (!renderScaleActive)
 			return;
+
 		renderScaleActive = false;
-		renderScaleFrames = 0;
-		renderQuality = 1;
+		renderScaleX = 0;
+		renderScaleY = 0;
 		flashSprite.cacheAsBitmapMatrix = null;
 		flashSprite.cacheAsBitmap = false;
+		releaseRenderBuffers();
 	}
 
-	function compensateRenderScale():Void
-	{
-		if (!renderScaleActive)
-			return;
-		if (renderScaleFrames < 2)
-		{
-			renderScaleFrames++;
-			return;
-		}
-
-		var cache:Bitmap = @:privateAccess flashSprite.__cacheBitmap;
-		var world:Matrix = @:privateAccess flashSprite.__renderTransform;
-		if (cache == null || world == null)
-			return;
-
-		var shown:Matrix = @:privateAccess cache.__renderTransform;
-		if (shown == null)
-			return;
-
-		var factor:Float = 1 / renderQuality - 1;
-		var parentScaleX:Float = flashSprite.scaleX != 0 ? world.a / flashSprite.scaleX : 1;
-		var parentScaleY:Float = flashSprite.scaleY != 0 ? world.d / flashSprite.scaleY : 1;
-		if (parentScaleX == 0)
-			parentScaleX = 1;
-		if (parentScaleY == 0)
-			parentScaleY = 1;
-
-		flashSprite.x += (shown.tx - world.tx) * factor / parentScaleX;
-		flashSprite.y += (shown.ty - world.ty) * factor / parentScaleY;
-	}
-
+	@:access(openfl.display.DisplayObject)
 	function updateRenderScale():Void
 	{
-		if (renderFrames < 3)
+		if (renderFrames < 2)
 			renderFrames++;
 
 		var quality:Float = ClientPrefs.data.gameResolution / 100;
-		var hasFilters:Bool = filtersEnabled && filters != null && filters.length > 0;
-		if (hasFilters)
+		if (filtersEnabled && filters != null && filters.length > 0)
 			quality *= ClientPrefs.data.shaderQuality / 100;
 
-		if (Math.abs(quality - 1) < 0.005)
+		if (quality >= QUALITY_EPSILON)
 		{
 			restoreRenderScale();
 			return;
 		}
 
-		if (renderFrames < 3)
+		if (renderFrames < 2)
 			return;
 
-		var world:Matrix = @:privateAccess flashSprite.__renderTransform;
+		final sprite = flashSprite;
+		final world:Matrix = sprite.__renderTransform;
 		if (world == null)
 			return;
 
-		var pixelsX:Float = Math.abs(world.a) * width + Math.abs(world.c) * height;
-		var pixelsY:Float = Math.abs(world.b) * width + Math.abs(world.d) * height;
-		var largest:Float = Math.max(pixelsX, pixelsY);
-		if (largest <= 0)
+		final worldX:Float = Math.sqrt(world.a * world.a + world.b * world.b);
+		final worldY:Float = Math.sqrt(world.c * world.c + world.d * world.d);
+		if (worldX <= 0 || worldY <= 0)
 			return;
-		if (largest * quality > MAX_RENDER_PIXELS)
+
+		final largest:Float = Math.max(worldX * width, worldY * height);
+		if (largest > 0 && largest * quality > MAX_RENDER_PIXELS)
 			quality = MAX_RENDER_PIXELS / largest;
+		if (quality < MIN_RENDER_QUALITY)
+			quality = MIN_RENDER_QUALITY;
 
-		renderQuality = quality;
+		if (quality >= QUALITY_EPSILON)
+		{
+			restoreRenderScale();
+			return;
+		}
 
-		var current:Matrix = flashSprite.cacheAsBitmapMatrix;
-		var scaleA:Float = world.a * quality;
-		var scaleB:Float = world.b * quality;
-		var scaleC:Float = world.c * quality;
-		var scaleD:Float = world.d * quality;
+		final scaleX:Float = worldX * quality;
+		final scaleY:Float = worldY * quality;
 
 		if (!renderScaleActive)
 		{
 			renderScaleActive = true;
-			flashSprite.cacheAsBitmap = true;
+			sprite.cacheAsBitmap = true;
 		}
 
-		if (current == null
-			|| Math.abs(current.a - scaleA) > 0.002
-			|| Math.abs(current.b - scaleB) > 0.002
-			|| Math.abs(current.c - scaleC) > 0.002
-			|| Math.abs(current.d - scaleD) > 0.002)
-			flashSprite.cacheAsBitmapMatrix = new Matrix(scaleA, scaleB, scaleC, scaleD, 0, 0);
+		if (sprite.cacheAsBitmapMatrix == null
+			|| Math.abs(scaleX - renderScaleX) > 0.002
+			|| Math.abs(scaleY - renderScaleY) > 0.002)
+		{
+			renderScaleX = scaleX;
+			renderScaleY = scaleY;
+			releaseRenderBuffers();
+			sprite.cacheAsBitmapMatrix = new Matrix(scaleX, 0, 0, scaleY, 0, 0);
+		}
+
+		final matrix:Matrix = sprite.cacheAsBitmapMatrix;
+		renderBounds.setTo(0, 0, 0, 0);
+		sprite.__getFilterBounds(renderBounds, matrix);
+
+		final offsetX:Float = renderBounds.x > 0 ? Math.ceil(renderBounds.x) : Math.floor(renderBounds.x);
+		final offsetY:Float = renderBounds.y > 0 ? Math.ceil(renderBounds.y) : Math.floor(renderBounds.y);
+
+		var parentX:Float = Math.abs(sprite.scaleX) > 0 ? worldX / Math.abs(sprite.scaleX) : 1;
+		var parentY:Float = Math.abs(sprite.scaleY) > 0 ? worldY / Math.abs(sprite.scaleY) : 1;
+		if (parentX <= 0)
+			parentX = 1;
+		if (parentY <= 0)
+			parentY = 1;
+
+		final localX:Float = offsetX * (worldX / matrix.a - 1) / parentX;
+		final localY:Float = offsetY * (worldY / matrix.d - 1) / parentY;
+
+		final radians:Float = sprite.rotation * Math.PI / 180;
+		final cos:Float = Math.cos(radians);
+		final sin:Float = Math.sin(radians);
+
+		sprite.x += localX * cos - localY * sin;
+		sprite.y += localX * sin + localY * cos;
 	}
 
 	public function updateFollowDelta(?elapsed:Float = 0):Void
