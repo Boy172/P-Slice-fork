@@ -217,6 +217,7 @@
 
 	<haxedef name="no-deprecation-warnings" />
 	<haxedef name="lime_disable_assets_version" />
+	<haxedef name="openfl_disable_hdpi_cacheasbitmap" />
 	<haxedef name="no_ssl" if="hl" />
 
 	<haxedef name="message.reporting" value="pretty" />
